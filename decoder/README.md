@@ -11,3 +11,9 @@ nibabel is used for processing MRTRIX tck files and DICOM/NifTi files.
 ```
 pip install nibabel
 ```
+
+## Scipy (v1.7.2) & Numpy (v1.21.4)
+Standard Requirement for Scipy/Numpy
+```
+pip install scipy numpy
+```
