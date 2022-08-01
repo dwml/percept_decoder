@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Some common utility functions for doing Time-Frequency Analysis and other 
-signal processing in Python
-
-@author: Jackson Cagle
+@author: Jackson Cagle, University of Florida
+@email: jackson.cagle@neurology.ufl.edu
+@date: Fri Oct 17 2020
 """
 
 from spectrum import pyule
@@ -12,7 +11,7 @@ import scipy.signal as signal
 import scipy.stats as stats
 import copy
 
-from PythonUtility import *
+from utility.PythonUtility import *
 #from entropy import sample_entropy
 
 def valueMapping(data, vmin=0, vmax=1, method="linear"):

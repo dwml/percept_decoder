@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-@author: Jackson Cagle, University of Florida, ©2021
+@author: Jackson Cagle, University of Florida
 @email: jackson.cagle@neurology.ufl.edu
 @date: Mon Jun 28 16:47:14 2021
 """
