@@ -6,7 +6,7 @@ import struct
 from scipy import io as sio
 from scipy.interpolate import RegularGridInterpolator
 
-from SignalProcessingUtility import rssq
+from utility.SignalProcessingUtility import rssq
 
 def decodeUFVTK(filename):
     """
@@ -261,6 +261,12 @@ def transformNifTi(nii, tform, refDimension=None, dtype=np.int16):
     warpedNifTi = nib.nifti1.Nifti1Image(warpedImage, affine)
     return warpedNifTi
 
+def generateANTsTransformation(tform, filename):
+    AffineTransform_double_3_3 = np.linalg.inv(tform)[:,:3].reshape((12,1))
+    AffineTransform_double_3_3[10] *= -1
+    sio.savemat(filename, {"AffineTransform_double_3_3": AffineTransform_double_3_3, 
+                           "fixed": np.zeros((3,1))}, format="4")
+
 def loadAtlasTransform(filename):
     fmrisavedata = sio.loadmat("fmrisavedata.mat", simplify_cells=True)
     savestruct = fmrisavedata["savestruct"]
@@ -308,3 +314,4 @@ def computeTransformationMatrix(scale, translation, rotation):
 
     tform = xRotation @ yRotation @ zRotation @ Scale @ Translation
     return tform
+
