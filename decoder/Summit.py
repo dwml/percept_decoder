@@ -19,8 +19,7 @@ import copy
 import numpy as np
 from datetime import datetime
 
-sys.path.append(os.getcwd() + os.path.sep + ".." + os.path.sep + "Percept" + os.path.sep + "Percept_Analysis")
-from PythonUtility import unwrap
+from utility.PythonUtility import unwrap
 
 ######################################################################
 #################### Summit API 1.6.0 Defines ########################
