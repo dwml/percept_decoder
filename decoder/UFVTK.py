@@ -107,11 +107,9 @@ def computeTransformMatrix(xfrm):
     transformMatrix = np.eye(4)
     transformMatrix[0:3,:][:,0:3] = xfrm[1:4]
     transformMatrix[3,:][0:3] = xfrm[0]
-    transformMatrix = transformMatrix[:,[1,0,2,3]]
     brwMatrix = np.eye(4)
-    brwMatrix = brwMatrix[:,[1,0,2,3]]
     tform = np.linalg.lstsq(transformMatrix, brwMatrix, rcond=None)[0]
-    return tform
+    return tform.T
 
 def loadCRW(filename):
     """
@@ -219,8 +217,15 @@ def makeNifTi(info, img):
     nii (nibabel.nifti1.NifTi1Image): Nibabel NifTi1 object.
     """
     tform = computeTransformMatrix(info["xfrm"])
-    tform[:3,-1] = info["pixelOrigin"]
-    nii = nib.nifti1.Nifti1Image(img, tform)
+    tform[:3,-1] += info["pixelOrigin"]
+
+    header = nib.Nifti1Header()
+    header.set_qform(tform)
+    header.set_sform(tform)
+    header.set_data_shape(img.shape)
+    header.set_zooms(info["dimension"])
+    header.set_xyzt_units(2)
+    nii = nib.Nifti1Image(img, header.get_best_affine(), header)
     return nii
 
 def transformNifTi(nii, tform, refDimension=None, dtype=np.int16):
@@ -261,6 +266,28 @@ def transformNifTi(nii, tform, refDimension=None, dtype=np.int16):
     warpedNifTi = nib.nifti1.Nifti1Image(warpedImage, affine)
     return warpedNifTi
 
+def antsApplyTransform():
+    """
+    antsRegistration -v 1 -d 3 -o [TRANSFORMATION_PREFIX, TRANSFORMED_FILE  ] \ 
+        -n Linear \ 
+        -u \ 
+        -f 1 \ 
+        -w [0.005,0.095] \ 
+        -a 1 \ 
+        -r [FIXED_IMAGE,MOVE_IMAGE,1] \ 
+        -t Affine[0.25] \ 
+        -c [1000x500x250x0,1e-8,10] \ 
+        -s 4x3x2x1vox \ 
+        -f 12x8x4x1 \ 
+        -m MI[FIXED_IMAGE,MOVE_IMAGE,1,32,Random,0.25]
+
+    antsApplyTransforms -i INPUT_IMAGE \ 
+        -o OUTPUT_IMAGE \ 
+        -r REFERENCE_IMAGE \ 
+        -u short \ 
+        -t [TRANSFORMATION_MAT,0]
+    """
+
 def generateANTsTransformation(tform, filename):
     AffineTransform_double_3_3 = np.linalg.inv(tform)[:,:3].reshape((12,1))
     AffineTransform_double_3_3[10] *= -1
@@ -268,7 +295,7 @@ def generateANTsTransformation(tform, filename):
                            "fixed": np.zeros((3,1))}, format="4")
 
 def loadAtlasTransform(filename):
-    fmrisavedata = sio.loadmat("fmrisavedata.mat", simplify_cells=True)
+    fmrisavedata = sio.loadmat(filename, simplify_cells=True)
     savestruct = fmrisavedata["savestruct"]
     transform = dict()
     if "mvmtleft" in savestruct.keys():
