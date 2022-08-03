@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
+Give a general description of UF AO MPX File here.
 @author: Jackson Cagle, University of Florida
 @email: jackson.cagle@neurology.ufl.edu
-@date: Mon Oct 5th, 2020
 """
 
 import json

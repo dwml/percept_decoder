@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-@author: Jackson Cagle, University of Florida
-@email: jackson.cagle@neurology.ufl.edu
-@date: Mon Jun 28 16:47:14 2021
+Give a general description of UF AO MPX File here.
+
 """
 
 import sys, os
 import numpy as np
 from datetime import datetime
-
-"""""""""""""""""""""""""""
-# Command Bytes Definitions
-"""""""""""""""""""""""""""
 
 E_Command_Generic_Message       = 7 
 E_Command_Module_Params         = 8 
@@ -32,17 +27,11 @@ E_Command_MGPlus_Imp_Values            = 411
 E_Command_Traj_Settings                = 522
 E_Command_Filter_Params                = 867
 
-"""""""""""""""""""""""""""
 # Status Bytes Definitions
-"""""""""""""""""""""""""""
-
 E_Status_Generic_Message            = 2 
 E_Status_Stim_Status                = 4 
 
-"""""""""""""""""""""""""""
 # Generic Message Definitions
-"""""""""""""""""""""""""""
-
 E_GenMes_MessageMotorMilage       = 3 
 E_GenMes_HeadStageStatuses        = 6 
 E_GenMes_TextMessage              = 20
@@ -51,10 +40,7 @@ E_GenMes_ChannelState             = 25
 E_GenMes_ChannelDownSample        = 26
 E_GenMes_ReferenceChanged         = 34
 
-"""""""""""""""""""""""""""
 # Module Parameters
-"""""""""""""""""""""""""""
-
 E_Module_ModuleStimulus          = 1 
 E_Module_AnalogOutputParam       = 3 
 E_Module_ElectrodeParam          = 5 

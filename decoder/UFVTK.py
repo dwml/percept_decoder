@@ -9,6 +9,16 @@ from scipy.interpolate import RegularGridInterpolator
 from utility.SignalProcessingUtility import rssq
 
 def decodeUFVTK(filename):
+    """Decode UFVTK file into header and image field
+
+    :param filename: Full/Relative Path to the UFVTK file you want to decode.
+    :type filename: string, require
+    :return: header dictionary describing the image data
+    :rtype: dict
+    :return: 3D numpy array (signed 16-bit) for raw image data.
+    :rtype: numpy.ndarray
+    """
+
     """
     Decode UFVTK file into header and image field
 
