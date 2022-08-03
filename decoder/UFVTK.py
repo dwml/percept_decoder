@@ -342,3 +342,188 @@ def computeTransformationMatrix(scale, translation, rotation):
     tform = xRotation @ yRotation @ zRotation @ Scale @ Translation
     return tform
 
+def volume2stl(atlas, outFile, threshold=0.4):
+    voxelData = atlas.get_fdata()
+    voxelData = voxelData > ((np.max(voxelData) - np.min(voxelData)) * threshold + np.min(voxelData))
+    Indexes = np.where(voxelData)
+
+    tform = atlas.header.get_best_affine()
+    dims = [np.arange(voxelData.shape[i]) * tform[i,i] + tform[i,3] for i in range(3)]
+
+    for i in range(3):
+        dataSelection = range(np.min(Indexes[i]),np.max(Indexes[i])+1)
+        if i == 0:
+            voxelData = voxelData[dataSelection,:,:]
+        elif i == 1:
+            voxelData = voxelData[:,dataSelection,:]
+        elif i == 2:
+            voxelData = voxelData[:,:,dataSelection]
+        dims[i] = dims[i][dataSelection]
+
+    gridSteps = list()
+    gridLower = list()
+    gridUpper = list()
+    for i in range(3):
+        gridSteps.append(np.diff(dims[i]))
+        gridLower.append(dims[i] - np.concatenate(([gridSteps[i][0]], gridSteps[i])) * 0.5)
+        gridUpper.append(dims[i] + np.concatenate((gridSteps[i], [gridSteps[i][-1]])) * 0.5)
+
+    voxelCounts = [len(dims[i]) for i in range(3)]
+    voxelDataShifted = np.zeros(voxelData.shape, dtype=bool)
+
+    if voxelCounts[0] > 2:
+        gridDataWithBorder = np.concatenate((np.zeros((1, voxelCounts[1], voxelCounts[2])), voxelData, np.zeros((1, voxelCounts[1], voxelCounts[2]))), axis=0)
+        voxelDataShifted = np.concatenate((np.zeros((1, voxelCounts[1], voxelCounts[2])), voxelDataShifted, np.zeros((1, voxelCounts[1], voxelCounts[2]))), axis=0)
+        voxelDataShifted = voxelDataShifted + np.roll(gridDataWithBorder, -1, axis=0) + np.roll(gridDataWithBorder, 1, axis=0)
+        voxelDataShifted = voxelDataShifted[1:-1,:,:]
+        
+    if voxelCounts[1] > 2:
+        gridDataWithBorder = np.concatenate((np.zeros((voxelCounts[0], 1, voxelCounts[2])), voxelData, np.zeros((voxelCounts[0], 1, voxelCounts[2]))), axis=1)
+        voxelDataShifted = np.concatenate((np.zeros((voxelCounts[0], 1, voxelCounts[2])), voxelDataShifted, np.zeros((voxelCounts[0], 1, voxelCounts[2]))), axis=1)
+        voxelDataShifted = voxelDataShifted + np.roll(gridDataWithBorder, shift=-1, axis=1) + np.roll(gridDataWithBorder, shift=1, axis=1)
+        voxelDataShifted = voxelDataShifted[:,1:-1,:]
+        
+    if voxelCounts[2] > 2:
+        gridDataWithBorder = np.concatenate((np.zeros((voxelCounts[0], voxelCounts[1], 1)), voxelData, np.zeros((voxelCounts[0], voxelCounts[1], 1))), axis=2)
+        voxelDataShifted = np.concatenate((np.zeros((voxelCounts[0], voxelCounts[1], 1)), voxelDataShifted, np.zeros((voxelCounts[0], voxelCounts[1], 1))), axis=2)
+        voxelDataShifted = voxelDataShifted + np.roll(gridDataWithBorder, shift=-1, axis=2) + np.roll(gridDataWithBorder, shift=1, axis=2)
+        voxelDataShifted = voxelDataShifted[:,:,1:-1]
+
+    edgeIndexes = np.where(np.bitwise_and(voxelData == 1, voxelDataShifted < 6))
+    edgeCount = len(edgeIndexes[0])
+    facetCount = int(2 * (edgeCount*6 - np.sum(voxelDataShifted[edgeIndexes])))
+    neighbourlist = np.zeros((facetCount, 6), dtype=bool)
+
+    meshes = np.zeros((facetCount,3,3));
+    normals = np.zeros((facetCount,3));
+
+    faceCountLooper = 0
+    for i in range(edgeCount):
+        if edgeIndexes[0][i] == 0:
+            neighbourlist[i,0] = 0
+        else:
+            neighbourlist[i,0] = voxelData[edgeIndexes[0][i]-1,edgeIndexes[1][i],edgeIndexes[2][i]]
+        
+        if edgeIndexes[1][i] == 0:
+            neighbourlist[i,1] = 0
+        else:
+            neighbourlist[i,1] = voxelData[edgeIndexes[0][i],edgeIndexes[1][i]-1,edgeIndexes[2][i]]
+        
+        if edgeIndexes[2][i] == voxelCounts[2]-1:
+            neighbourlist[i,2] = 0
+        else:
+            neighbourlist[i,2] = voxelData[edgeIndexes[0][i],edgeIndexes[1][i],edgeIndexes[2][i]+1]
+        
+        if edgeIndexes[1][i] == voxelCounts[1]-1:
+            neighbourlist[i,3] = 0
+        else:
+            neighbourlist[i,3] = voxelData[edgeIndexes[0][i],edgeIndexes[1][i]+1,edgeIndexes[2][i]]
+        
+        if edgeIndexes[2][i] == 0:
+            neighbourlist[i,4] = 0
+        else:
+            neighbourlist[i,4] = voxelData[edgeIndexes[0][i],edgeIndexes[1][i],edgeIndexes[2][i]-1]
+        
+        if edgeIndexes[0][i] == voxelCounts[0]-1:
+            neighbourlist[i,5] = 0
+        else:
+            neighbourlist[i,5] = voxelData[edgeIndexes[0][i]+1,edgeIndexes[1][i],edgeIndexes[2][i]]
+            
+        facetCOtemp = np.zeros((2*(6-np.sum(neighbourlist[i,:])), 3, 3))
+        normalsCOtemp = np.zeros((2*(6-np.sum(neighbourlist[i,:])), 3))
+        facetcountthisvoxel = 0
+        
+        if neighbourlist[i,0] == 0:
+            facetCOtemp[facetcountthisvoxel, :, 0]  = [gridLower[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 1]  = [gridLower[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 2]  = [gridLower[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            normalsCOtemp[facetcountthisvoxel, :]   = [-1,0,0]
+            facetcountthisvoxel                     = facetcountthisvoxel+1
+            facetCOtemp[facetcountthisvoxel, :, 0]  = [gridLower[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 1]  = [gridLower[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 2]  = [gridLower[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            normalsCOtemp[facetcountthisvoxel, :]   = [-1,0,0]
+            facetcountthisvoxel                     = facetcountthisvoxel+1
+            faceCountLooper                         = faceCountLooper+2
+            
+        if neighbourlist[i,1] == 0:
+            facetCOtemp[facetcountthisvoxel, :, 0]  = [gridLower[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 1]  = [gridUpper[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 2]  = [gridLower[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            normalsCOtemp[facetcountthisvoxel, :]   = [-1,0,0]
+            facetcountthisvoxel                     = facetcountthisvoxel+1
+            facetCOtemp[facetcountthisvoxel, :, 0]  = [gridUpper[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 1]  = [gridLower[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 2]  = [gridUpper[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            normalsCOtemp[facetcountthisvoxel, :]   = [-1,0,0]
+            facetcountthisvoxel                     = facetcountthisvoxel+1
+            faceCountLooper                         = faceCountLooper+2
+            
+        if neighbourlist[i,2] == 0:
+            facetCOtemp[facetcountthisvoxel, :, 0]  = [gridUpper[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 1]  = [gridUpper[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 2]  = [gridLower[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            normalsCOtemp[facetcountthisvoxel, :]   = [-1,0,0]
+            facetcountthisvoxel                     = facetcountthisvoxel+1
+            facetCOtemp[facetcountthisvoxel, :, 0]  = [gridLower[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 1]  = [gridLower[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 2]  = [gridUpper[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            normalsCOtemp[facetcountthisvoxel, :]   = [-1,0,0]
+            facetcountthisvoxel                     = facetcountthisvoxel+1
+            faceCountLooper                         = faceCountLooper+2
+            
+        if neighbourlist[i,3] == 0:
+            facetCOtemp[facetcountthisvoxel, :, 0]  = [gridUpper[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 1]  = [gridLower[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 2]  = [gridUpper[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            normalsCOtemp[facetcountthisvoxel, :]   = [-1,0,0]
+            facetcountthisvoxel                     = facetcountthisvoxel+1
+            facetCOtemp[facetcountthisvoxel, :, 0]  = [gridLower[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 1]  = [gridUpper[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 2]  = [gridLower[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            normalsCOtemp[facetcountthisvoxel, :]   = [-1,0,0]
+            facetcountthisvoxel                     = facetcountthisvoxel+1
+            faceCountLooper                         = faceCountLooper+2
+            
+        if neighbourlist[i,4] == 0:
+            facetCOtemp[facetcountthisvoxel, :, 0]  = [gridLower[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 1]  = [gridLower[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 2]  = [gridUpper[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            normalsCOtemp[facetcountthisvoxel, :]   = [-1,0,0]
+            facetcountthisvoxel                     = facetcountthisvoxel+1
+            facetCOtemp[facetcountthisvoxel, :, 0]  = [gridUpper[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 1]  = [gridUpper[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 2]  = [gridLower[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            normalsCOtemp[facetcountthisvoxel, :]   = [-1,0,0]
+            facetcountthisvoxel                     = facetcountthisvoxel+1
+            faceCountLooper                         = faceCountLooper+2
+            
+        if neighbourlist[i,5] == 0:
+            facetCOtemp[facetcountthisvoxel, :, 0]  = [gridUpper[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 1]  = [gridUpper[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 2]  = [gridUpper[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            normalsCOtemp[facetcountthisvoxel, :]   = [-1,0,0]
+            facetcountthisvoxel                     = facetcountthisvoxel+1
+            facetCOtemp[facetcountthisvoxel, :, 0]  = [gridUpper[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 1]  = [gridUpper[0][edgeIndexes[0][i]], gridLower[1][edgeIndexes[1][i]], gridLower[2][edgeIndexes[2][i]]]
+            facetCOtemp[facetcountthisvoxel, :, 2]  = [gridUpper[0][edgeIndexes[0][i]], gridUpper[1][edgeIndexes[1][i]], gridUpper[2][edgeIndexes[2][i]]]
+            normalsCOtemp[facetcountthisvoxel, :]   = [-1,0,0]
+            facetcountthisvoxel                     = facetcountthisvoxel+1
+            faceCountLooper                         = faceCountLooper+2
+        
+        meshes[faceCountLooper-facetcountthisvoxel:faceCountLooper,:,:] = facetCOtemp
+        normals[faceCountLooper-facetcountthisvoxel:faceCountLooper,:] = normalsCOtemp
+
+    faceCountLooper
+    output = np.zeros((faceCountLooper, 3, 4))
+    output[:,:,0] = normals
+    output[:,:,1:] = meshes
+    finalOutput = np.transpose(output, [1,2,0])
+
+    with open(outFile, "wb+") as file:
+        file.write(np.zeros(80,dtype=np.int8).tobytes())
+        file.write(np.array([faceCountLooper],dtype=np.int32).tobytes())
+        
+        for i in range(faceCountLooper):
+            file.write(np.array(finalOutput[:,:,i].reshape((12,1),order="F"), dtype=np.float32).tobytes())
+            file.write(np.array([0], dtype=np.int16).tobytes())
