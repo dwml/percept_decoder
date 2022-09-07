@@ -32,7 +32,7 @@ def rangeSelection(array, minMax, type="exclusive"):
         return np.bitwise_and(array <= minMax[1], array >= minMax[0])
 
 def findClosest(array, value):
-    index = np.argmin(np.abs(array-value))
+    index = np.argmin(np.abs(np.array(array)-value))
     return array[index], index
 
 def listSelection(oldList, boolArray):
