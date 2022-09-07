@@ -16,6 +16,7 @@ import pickle
 import dateutil
 import pandas as pd
 from scipy import optimize
+from cryptography.fernet import Fernet
 
 from utility.PythonUtility import *
 from utility import SignalProcessingUtility as SPU
@@ -90,6 +91,12 @@ def estimateSessionDateTime(JSON):
 def decodeJSON(inputFilename):
     Data = json.load(open(inputFilename, encoding='utf-8'))
     return Data
+
+def decodeEncryptedJSON(inputFilename, key):
+    secureEncoder = Fernet(key)
+    with open(inputFilename, "rb") as file:
+        Data = json.loads(secureEncoder.decrypt(file.read()))
+        return Data
 
 def concatenateJSONs(JSONs):
     # Get the list of fields in all JSONs
