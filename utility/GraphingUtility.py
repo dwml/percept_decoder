@@ -87,16 +87,16 @@ def singleViolin(x, y, width=0.5, showmeans=False, showextrema=True, showmedians
             
     return violin
 
-def standardErrorBox(x, y, width=0.5, color=None, showfliers=True, flierprops=None, ax=None):
+def standardErrorBox(x, y, width=0.5, color=None, sym="*", showfliers=True, flierprops=None, ax=None):
     if ax is None:
         ax = plt.gca()
     
     if not color == None:
-        box = ax.boxplot(y, positions=[x], widths=[width], showfliers=showfliers, patch_artist=True)
+        box = ax.boxplot(y, positions=[x], widths=[width], showfliers=showfliers, sym=sym, patch_artist=True)
         for patch in box['boxes']:
             patch.set(facecolor=color)
     else:
-        box = ax.boxplot(y, positions=[x], widths=[width], showfliers=showfliers)
+        box = ax.boxplot(y, positions=[x], widths=[width], showfliers=showfliers, sym=sym)
     
     return box
     
