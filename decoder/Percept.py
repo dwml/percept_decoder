@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
+""""""
 """
-Give a general description of UF AO MPX File here.
+Python Module for Medtronic Percept JSON Decoding
+===================================================
 @author: Jackson Cagle, University of Florida
 @email: jackson.cagle@neurology.ufl.edu
 """
@@ -47,7 +49,50 @@ def formatKeyName(dictionary):
                 dictionary[key][hemisphere] = formatLFPTrendTimestamp(dictionary[key][hemisphere])
     return dictionary
 
+def decodeJSON(inputFilename):
+    """ Parse Medtronic JSON File into JSON object.
+
+    Args:
+      inputFilename: Path to utf-8 encoded JSON text file.
+
+    Returns:
+      The raw exported Percept JSON object.
+    """
+    Data = json.load(open(inputFilename, encoding='utf-8'))
+    return Data
+
+def decodeEncryptedJSON(inputFilename, key):
+    """ Parse Encrypted Medtronic JSON File into JSON object.
+
+    Args:
+      inputFilename: Path to Fernet encrypted JSON text file.
+      key: Fernet Encoder Passkey
+
+    Returns:
+      The raw exported Percept JSON object.
+    """
+    secureEncoder = Fernet(key)
+    with open(inputFilename, "rb") as file:
+        Data = json.loads(secureEncoder.decrypt(file.read()))
+        return Data
+
 def estimateSessionDateTime(JSON):
+    """ Find all common occurance of Session DateTime String
+
+    Percept JSON often display wrong DateTime for "SessionDate" field due to unknown errors. 
+    There are a few most likely accurate locations that we can cross-reference for accuracy.
+
+    1. SessionEndDate Field
+    2. FirstPacketDateTime for BrainSense Data or BrainSense Surveys.
+    3. SessionEndDate of EventSummary.
+
+    Args:
+      JSON: The raw exported Percept JSON object.
+
+    Returns:
+      The estimated unix timestamp (in seconds) of the session JSON file.
+    """
+
     sessionDatePools = list()
     if "SessionDate" in JSON.keys() and JSON["SessionEndDate"] == "":
         sessionDatePools.append(datetime.fromisoformat(JSON["SessionDate"]+"+00:00").timestamp())
@@ -87,16 +132,6 @@ def estimateSessionDateTime(JSON):
         return np.mean(np.array(sessionDatePools))
     zscore = np.abs((np.array(sessionDatePools) - np.mean(sessionDatePools)) / np.std(sessionDatePools)) < 2
     return np.mean(np.array(sessionDatePools)[zscore])
-
-def decodeJSON(inputFilename):
-    Data = json.load(open(inputFilename, encoding='utf-8'))
-    return Data
-
-def decodeEncryptedJSON(inputFilename, key):
-    secureEncoder = Fernet(key)
-    with open(inputFilename, "rb") as file:
-        Data = json.loads(secureEncoder.decrypt(file.read()))
-        return Data
 
 def concatenateJSONs(JSONs):
     # Get the list of fields in all JSONs
@@ -297,6 +332,15 @@ def text2num(textList):
         return float(textList)
 
 def reformatStimulationChannel(channel):
+    """ Reformat Stimulation electrode definitions to common expressions.
+
+    Args:
+      channel: Medtronic Channel Definition object.
+
+    Returns:
+      Single text string of electrode contacts (i.e. -E02+CAN).
+    """
+
     channelName = ""
     for contact in channel:
         if contact["ElectrodeStateResult"] != "ElectrodeStateDef.None":
@@ -315,6 +359,19 @@ def reformatStimulationChannel(channel):
     return channelName
 
 def reformatElectrodeDef(electrodeDef):
+    """ Reformat electrode definitions to common expressions.
+
+    Args:
+      electrodeDef: Medtronic Channel Definition string.
+
+    Returns:
+      Returns a tuple (ChannelName, ChannelID) where ChannelName is a single text string of electrode contacts (i.e. E02),
+      and ChannelID is numeric index of that channel.
+    
+    Raises:
+      ValueError: electrodeDef is of new electrode type. Script update is required. 
+    """
+
     electrodeDef = electrodeDef.upper()
     if not electrodeDef.startswith("ELECTRODEDEF."):
         raise ValueError("Incorrect Electrode Definition String.")
@@ -346,6 +403,16 @@ def reformatElectrodeDef(electrodeDef):
     return channelName, channelID
 
 def reformatChannelName(string):
+    """ Reformat Recording electrode definitions to common expressions.
+
+    Args:
+      string: Medtronic Sensing-Channel Definition string.
+
+    Returns:
+      Returns a tuple (ChannelID, Hemisphere) where ChannelID is a decimal number indicating channel ID,
+      and Hemisphere is brain hemisphere of the electrode.
+    """
+
     if string.find(",") >= 0:
         return (reformatChannelName(string[:string.find(",")]),
                 reformatChannelName(string[string.find(",")+1:]))
@@ -388,6 +455,15 @@ def randomDateTimeString(minTS = 0, maxTS = datetime.utcnow().timestamp()):
     return datetime.fromtimestamp(np.random.randint(minTS, maxTS)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 def getTimestamp(DateTimeString):
+    """ Convert Medtronic ISOFormat DateTime String to Unix Time.
+
+    Args:
+      DateTimeString: Medtronic ISOFormat DateTime string.
+
+    Returns:
+      Unix Timestamp (in seconds)
+    """
+
     return datetime.fromisoformat(DateTimeString[:-1]+"+00:00").timestamp()
 
 def deIdentification(JSON, patientIdentifier="", saveName=None):
@@ -463,6 +539,23 @@ def deIdentification(JSON, patientIdentifier="", saveName=None):
     return JSON
 
 def checkMissingPackage(Data):
+    """ Process and Correct Recordings with Missing Packages.
+
+    Percept BrainSense Streaming has possbility for missing data due to communication issue. 
+    This code will attempt to correct for the missing data by filling in 0s where there are no data
+    to keep sampling rate consistent. 
+
+    The correction occur in place of the data structure, so input/output is the identical structure. 
+    Check source code for detail implementation of the algorithm. 
+    The correction will be applied to Indefinite Streaming and BrainSense Streaming.
+
+    Args:
+      Data: Processed Percept Data Format.
+
+    Returns:
+      Processed Percept Data Format.
+    """
+
     if "IndefiniteStream" in Data.keys():
         for nStream in range(len(Data["IndefiniteStream"])):
             TDSequences = unwrap(Data["IndefiniteStream"][nStream]["Sequences"], cap=256)
@@ -564,6 +657,22 @@ def checkMissingPackage(Data):
     return Data
 
 def processBreakingTimeDomain(Data):
+    """ Process and Correct Recordings with break in between.
+
+    Percept BrainSense Streaming has possbility for splitting one recording into 2 structures due to communication issue. 
+    This code will attempt to correct for the splitted data by merging multiple recordings into one.
+
+    The correction occur in place of the data structure, so input/output is the identical structure. 
+    Check source code for detail implementation of the algorithm. 
+    The correction will be applied to BrainSense Streaming.
+
+    Args:
+      Data: Processed Percept Data Format.
+
+    Returns:
+      Processed Percept Data Format.
+    """
+
     if "StreamingTD" in Data.keys() and "StreamingPower" in Data.keys():
         StreamTimestamp = np.array([datetime.fromisoformat(Data["StreamingTD"][i]["FirstPacketDateTime"][:-1]+"+00:00").timestamp() for i in range(len(Data["StreamingTD"]))])
         UniqueStreamTimestamp = np.unique(StreamTimestamp)
@@ -738,6 +847,30 @@ def concatenateStreams(Data, Type, StreamToConcatenate):
         return FinalStream
 
 def extractPerceptJSON(JSON):
+    """ Primary Percept Data extraction code.
+
+    This code is a general wrapper to extract the following data structure from Percept JSON file 
+    and keep them in a standardized format. 
+
+    The following function will be executed:
+
+    1. extractPatientInformation
+    2. extractTherapySettings
+    3. extractStreamingData,
+    4. extractIndefiniteStreaming,
+    5. extractBrainSenseSurvey
+    6. extractSignalCalibration,
+    7. extractChronicLFP
+
+    Then data will be going through missing package handler (checkMissingPackage) and merging handler (processBreakingTimeDomain) for final output.
+
+    Args:
+      JSON: The raw exported Percept JSON object.
+
+    Returns:
+      Processed Percept Data Format.
+    """
+
     FunctionsToProcess = [extractPatientInformation, extractTherapySettings, extractStreamingData, 
                           extractIndefiniteStreaming, extractBrainSenseSurvey, extractSignalCalibration,
                           extractChronicLFP]
@@ -760,7 +893,22 @@ def extractPerceptJSON(JSON):
     
     return Data
 
-def extractPatientInformation(JSON, sourceData):
+def extractPatientInformation(JSON, sourceData=dict()):
+    """ Extract Patient Information.
+
+    Patient Information are mostly text indicator of the PHI or Device Information. 
+    Lead configuration and battery information will be copied and saved.
+
+    If session file contain impedance measurement, that will be extract as well. 
+
+    Args:
+      JSON: The raw exported Percept JSON object.
+      sourceData: Processed Percept Data Format (up to current step).
+
+    Returns:
+      Processed Percept Data Format.
+    """
+
     Data = dict()
     if "PatientInformation" in JSON.keys():
         Data["PatientInformation"] = copy.deepcopy(JSON["PatientInformation"]["Final"])
@@ -860,6 +1008,7 @@ def extractPatientInformation(JSON, sourceData):
     return Data
 
 def processTherapySettings(TherapyGroup):
+
     Therapy = dict()
     Therapy["GroupId"] = TherapyGroup["GroupId"]
     if "GroupName" in TherapyGroup.keys():
@@ -1013,6 +1162,27 @@ def processTherapySettings(TherapyGroup):
     return Therapy
 
 def extractTherapySettings(JSON, sourceData=dict()):
+    """ Extract Therapy Settings.
+
+    Medtronic uses various structure format for different type of stimulation settings, 
+    often result in different field pointer for the same type of data.
+    The therapy settings will be extracted and organized in the same format regardless of stimulation type for final database table.
+
+    Four main fields are processed here:
+
+    1. Previous Therapy Configuration at the beginning of Session ("Groups"-"Initial")
+    2. Final Therapy Configuration at the beginning of Session ("Groups"-"Final")
+    3. Therapy Configuration History up to 6 sessions before this ("GroupHistory")
+    4. Therapy Change Logs ("DiagnosticData"-"EventLogs")
+
+    Args:
+      JSON: The raw exported Percept JSON object.
+      sourceData: Processed Percept Data Format (up to current step).
+
+    Returns:
+      Processed Percept Data Format.
+    """
+
     Data = dict()
     if "Groups" in JSON.keys():
         key = "Groups"
@@ -1079,6 +1249,22 @@ def extractTherapySettings(JSON, sourceData=dict()):
     return Data
 
 def extractStreamingData(JSON, sourceData=dict()):
+    """ Extract BrainSense Streaming during Stimulation.
+
+    BrainSense Streaming is data collected during Stimulation Group configuration where you can stream powerband while varying stimulation amplitude. 
+    Data collected during this time is split into BrainSenseTimeDomain (250Hz TimeDomain recording) and BrainSenseLfp (Bilateral 5Hz PowerBand streaming).
+
+    Although minimum modification will be made during this step, we will still attempt to align bilateral recordings for BrainSenseTimeDomain and BrainSenseLfp for future processing.
+    *IMPORTANT*: Check source code for a special condition that was seen once in the past where BrainSenseTimeDomain got divided but not BrainSenseLfp.
+
+    Args:
+      JSON: The raw exported Percept JSON object.
+      sourceData: Processed Percept Data Format (up to current step).
+
+    Returns:
+      Processed Percept Data Format.
+    """
+
     Data = dict()
     if "BrainSenseTimeDomain" in JSON.keys():
         key = "BrainSenseTimeDomain"
@@ -1188,6 +1374,20 @@ def extractStreamingData(JSON, sourceData=dict()):
     return Data
 
 def extractIndefiniteStreaming(JSON, sourceData=dict()):
+    """ Extract Indefinite Streaming during BrainSense Survey.
+
+    Indefinite Streaming is data collected during BrainSense Survey where user can stream all 6-channels (Bilateral 0-2, 1-3, 0-3) TimeDomain data nonstop.
+    
+    Minimum modification will be made during extraction. Missing packages will be handled during "checkMissingPackage()".
+
+    Args:
+      JSON: The raw exported Percept JSON object.
+      sourceData: Processed Percept Data Format (up to current step).
+
+    Returns:
+      Processed Percept Data Format.
+    """
+
     Data = dict()
     if "IndefiniteStreaming" in JSON.keys():
         key = "IndefiniteStreaming"
@@ -1209,6 +1409,21 @@ def extractIndefiniteStreaming(JSON, sourceData=dict()):
     return Data
 
 def extractBrainSenseSurvey(JSON, sourceData=dict()):
+    """ Extract BrainSense Survey.
+
+    BrainSense Survey are short 20-30 seconds recording of all 6 channels (Unilateral 0-1, 0-2, 1-2, 1-3, 2-3, 0-3) TimeDomain data. 
+    Segmented recording is also part of BrainSense Survey. 
+    
+    Minimum modification will be made during extraction. Missing packages will NOT be handled as of now. 
+
+    Args:
+      JSON: The raw exported Percept JSON object.
+      sourceData: Processed Percept Data Format (up to current step).
+
+    Returns:
+      Processed Percept Data Format.
+    """
+
     Data = dict()
     if "LFPMontage" in JSON.keys():
         key = "LFPMontage"
@@ -1233,6 +1448,21 @@ def extractBrainSenseSurvey(JSON, sourceData=dict()):
     return Data
     
 def extractSignalCalibration(JSON, sourceData=dict()):
+    """ Extract BrainSense Calibration.
+
+    Calibration data is similar to BrainSense Survey but limited to 3 channels (Unilateral 0-2, 1-3, 0-3).
+    Stimulation will also be turned on (with unknown parameters) to allow computation of Transfer Function for stimulation.
+    
+    Minimum modification will be made during extraction. Missing packages will NOT be handled as of now. 
+
+    Args:
+      JSON: The raw exported Percept JSON object.
+      sourceData: Processed Percept Data Format (up to current step).
+
+    Returns:
+      Processed Percept Data Format.
+    """
+
     Data = dict()
     if "SenseChannelTests" in JSON.keys():
         key = "SenseChannelTests"
@@ -1268,6 +1498,23 @@ def extractSignalCalibration(JSON, sourceData=dict()):
     
 
 def extractChronicLFP(JSON, sourceData=dict()):
+    """ Extract Chronic BrainSense Power.
+
+    Chronic BrainSense Power are collected every 10 minutes if device is setup with BrainSense enabled group. 
+    Power values are collected alongside with stimulation amplitude. 
+    
+    Patient Events are processed alongside BrainSense Power because both are stored in DiagnosticData field.
+    
+    Minimum modification will be made during extraction. 
+
+    Args:
+      JSON: The raw exported Percept JSON object.
+      sourceData: Processed Percept Data Format (up to current step).
+
+    Returns:
+      Processed Percept Data Format.
+    """
+
     Data = dict()
     if "PatientEvents" in JSON.keys():
         key = "PatientEvents"
