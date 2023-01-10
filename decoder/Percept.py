@@ -546,8 +546,32 @@ def checkMissingPackage(Data):
     to keep sampling rate consistent. 
 
     The correction occur in place of the data structure, so input/output is the identical structure. 
-    Check source code for detail implementation of the algorithm. 
     The correction will be applied to Indefinite Streaming and BrainSense Streaming.
+
+    **TimeDomain Streaming** Implementation:
+
+    1. Calculate time (millisecond) difference between each packet using "Ticks" field in JSON object.
+    2. Calculate the median time elapsed, and any packets above the median time is considered as skipped packets.
+    3. Calculate average packet size (data come in packet of 62 or 63, 4 packets per second). 
+    4. Calculate number of missing packets (total skip time / median packet time)
+    5. Calculate insertion index based on cumulative sum packet length
+    6. Insert 0s to Time-Domain data, Label ["Missing"] field to 1s. 
+    7. Repeat above until all missing packets are accounted for. 
+
+    **Power Band Streaming** Implementation:
+
+    1. Calculate time (millisecond) difference between each packet using "Ticks" field in JSON object.
+    2. Calculate the median time elapsed, and any packets above the median time is considered as skipped packets.
+    3. If missing packets exist, create a template power band timestamp array using ``numpy.arange``.
+    4. Take in existing power band timestamp and power values and perform linear interpolation.
+    5. Repeat the same for Stimulation Amplitude because power band comes in the same packet as Stimulation.
+
+    **Timeshift between TimeDomain and Power Band packets**:
+
+    Time shift may exist, and it can be calculated using the difference of the first tick values in milliseconds for TimeDomain
+    and Power band packets. If the shift is within 1000ms, it will be a easy subtraction. However, if the value is uncommonly large,
+    it is identified that an overflow has occured. Such diffence should be compensated with 2^15 (maximum absolute value of signed 16-bit
+    variable). 
 
     Args:
       Data: Processed Percept Data Format.
