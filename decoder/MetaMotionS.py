@@ -16,7 +16,7 @@ def decodeBRAVOWearableStructure(filename):
     currentIndex = 80
     Headers = rawBytes[:currentIndex].decode("utf-8").rstrip("\x00")
     
-    Data = {"DeviceID": Headers, "Accelerometer": {"Time": [], "Data": []}, "Gyroscope": {"Time": [], "Data": []}, "AmbientLight": {"Time": [], "Data": []}}
+    Data = {"DeviceID": Headers, "Accelerometer": {"Time": [], "Data": []}, "RSSAccelerometer": {"Time": [], "Data": []}, "Gyroscope": {"Time": [], "Data": []}, "AmbientLight": {"Time": [], "Data": []}}
     while currentIndex < len(rawBytes)-1:
         DataType = rawBytes[currentIndex]
         if DataType == 25:
@@ -25,6 +25,12 @@ def decodeBRAVOWearableStructure(filename):
             Data["Accelerometer"]["Time"].append(Timestamp)
             Data["Accelerometer"]["Data"].append(DataValues)
             currentIndex += 24
+        elif DataType == 26:
+            DataValues = np.frombuffer(rawBytes[currentIndex+4:currentIndex+8], np.float32, count=1)[0]
+            Timestamp = np.frombuffer(rawBytes[currentIndex+8:currentIndex+16], np.float64, count=1)[0]
+            Data["RSSAccelerometer"]["Time"].append(Timestamp)
+            Data["RSSAccelerometer"]["Data"].append(DataValues)
+            currentIndex += 16
         elif DataType == 35:
             DataValues = np.frombuffer(rawBytes[currentIndex+4:currentIndex+16], np.float32, count=3)
             Timestamp = np.frombuffer(rawBytes[currentIndex+16:currentIndex+24], np.float64, count=1)[0]
