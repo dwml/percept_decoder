@@ -63,6 +63,24 @@ LoopRecordingTriggers = {0: "None", 1: "State0", 2: "State1", 4: "State2", 8: "S
 
 SenseTimeDomainDebugInfo = {0: "None", 1: "Ch0 Overlow", 2: "Ch1 Overlow", 4: "Ch2 Overlow", 8: "Ch3 Overlow", 64: "HWLP Wrapped Packet", 128: "Sensing Lost Interupt"}
 
+EventIDs = {
+    0: "AdaptiveTherapyStateChange",
+    1: "AdaptiveTherapyStateWritten",
+    2: "LfpLoopRecorderEvent",
+    4: "LfpSenseStateEvent",
+    5: "LdDetectionEvent",
+    16: "Cycling",
+    17: "CpSession",
+    18: "TherapyStatus",
+    20: "TherapyAvailability",
+    22: "NonSessionRecharge",
+    24: "RechargeSesson",
+    26: "ActiveDeviceChanged",
+    27: "AdaptiveTherapyStatusChanged",
+    255: "Invalid"
+}
+
+
 #--------------------------------------------------------------------------
 # Copyright (c) Medtronic, Inc. 2017
 #
@@ -855,6 +873,158 @@ def getErrorLogs(DataFolder):
         ErrorLogs.append(Data)
     return ErrorLogs
 
+def getAdaptiveSensingLog(DataFolder):
+    logFolderName = ""
+    
+    for folder in os.listdir(DataFolder):
+        if folder.startswith("LogDataFrom"):
+            logFolderName = folder
+    
+    if logFolderName == "":
+        return []
+    
+    LogFiles = os.listdir(DataFolder + logFolderName)
+    for file in LogFiles:
+        if file.endswith("AppLog.txt"):
+            with open(DataFolder + logFolderName + "/" + file, "r") as fp:
+                LogContent = fp.readlines()
+                
+            lineNum = 0
+            AllLogs = []
+            LogEntry = {}
+            while lineNum < len(LogContent):
+                try: 
+                    if "LogEntry.Header" in LogContent[lineNum]:
+                        AllLogs.append(LogEntry)
+                        LogEntry = {}
+                    
+                    if "LogHeader.EntryStatus" in LogContent[lineNum]:
+                        components = LogContent[lineNum].split(" ")
+                        for i in range(len(components)):
+                            if components[i] == "=":
+                                LogEntry["Status"] = int(components[i+1], 16) 
+                                break
+                    
+                    if "LogHeader.EntryTimestamp" in LogContent[lineNum]:
+                        lineNum += 1
+                        components = LogContent[lineNum].split(" ")
+                        for i in range(len(components)):
+                            if components[i] == "=":
+                                LogEntry["Timestamp"] = int(components[i+1].strip(","), 16) + 951868800
+                                break
+                    
+                    if "LogEntry.Payload" in LogContent[lineNum]:
+                        LogEntry["Payload"] = {}
+                    
+                    if "EventId" in LogContent[lineNum] and "CommonLogPayload" in LogContent[lineNum]:
+                        components = LogContent[lineNum].split(" ")
+                        for i in range(len(components)):
+                            if components[i] == "=":
+                                LogEntry["Payload"]["ID"] = EventIDs[int(components[i+1], 16)]
+                                break
+                    
+                    if "EntryPayload" in LogContent[lineNum] and "CommonLogPayload" in LogContent[lineNum]:
+                    
+                        if LogEntry["Payload"]["ID"] == "AdaptiveTherapyStateChange":
+                            LogEntry["Payload"]["AdaptiveTherapy"] = {}
+                            lineNum += 1
+                            while "AdaptiveTherapyModificationEntry" in LogContent[lineNum]:
+                                if ".NewState" in LogContent[lineNum]:
+                                    components = LogContent[lineNum].split(" ")
+                                    for i in range(len(components)):
+                                        if components[i] == "=":
+                                            LogEntry["Payload"]["AdaptiveTherapy"]["NewState"] = int(components[i+1], 16)
+                                            break
+                                elif ".OldState" in LogContent[lineNum]:
+                                    components = LogContent[lineNum].split(" ")
+                                    for i in range(len(components)):
+                                        if components[i] == "=":
+                                            LogEntry["Payload"]["AdaptiveTherapy"]["OldState"] = int(components[i+1], 16)
+                                            break
+                                        
+                                lineNum += 1
+                except Exception as e:
+                    print(e)
+                    
+                lineNum += 1
+            return AllLogs[-1:0:-1]
+
+def getSystemEventLogs(DataFolder):
+    logFolderName = ""
+    
+    for folder in os.listdir(DataFolder):
+        if folder.startswith("LogDataFrom"):
+            logFolderName = folder
+            
+    if logFolderName == "":
+        return []
+    
+    LogFiles = os.listdir(DataFolder + logFolderName)
+    for file in LogFiles:
+        if file.endswith("EventLog.txt"):
+            with open(DataFolder + logFolderName + "/" + file, "r") as fp:
+                LogContent = fp.readlines()
+                
+            lineNum = 0
+            AllLogs = []
+            LogEntry = {}
+            while lineNum < len(LogContent):
+                try: 
+                    if "LogEntry.Header" in LogContent[lineNum]:
+                        AllLogs.append(LogEntry)
+                        LogEntry = {}
+                    
+                    if "LogHeader.EntryStatus" in LogContent[lineNum]:
+                        components = LogContent[lineNum].split(" ")
+                        for i in range(len(components)):
+                            if components[i] == "=":
+                                LogEntry["Status"] = int(components[i+1], 16) 
+                                break
+                    
+                    if "LogHeader.EntryTimestamp" in LogContent[lineNum]:
+                        lineNum += 1
+                        components = LogContent[lineNum].split(" ")
+                        for i in range(len(components)):
+                            if components[i] == "=":
+                                LogEntry["Timestamp"] = int(components[i+1].strip(","), 16) + 951868800
+                                break
+                    
+                    if "LogEntry.Payload" in LogContent[lineNum]:
+                        LogEntry["Payload"] = {}
+                    
+                    if "EventId" in LogContent[lineNum] and "CommonLogPayload" in LogContent[lineNum]:
+                        components = LogContent[lineNum].split(" ")
+                        for i in range(len(components)):
+                            if components[i] == "=":
+                                LogEntry["Payload"]["ID"] = EventIDs[int(components[i+1], 16)]
+                                break
+                    
+                    if "EntryPayload" in LogContent[lineNum] and "CommonLogPayload" in LogContent[lineNum]:
+                    
+                        if LogEntry["Payload"]["ID"] == "TherapyStatus":
+                            LogEntry["Payload"]["TherapyEvent"] = {}
+                            lineNum += 1
+                            while "TherapyStatusEventLogEntry" in LogContent[lineNum]:
+                                if ".TherapyStatusType" in LogContent[lineNum]:
+                                    components = LogContent[lineNum].split(" ")
+                                    for i in range(len(components)):
+                                        if components[i] == "=":
+                                            LogEntry["Payload"]["TherapyEvent"]["Type"] = int(components[i+1], 16)
+                                            break
+                                elif ".TherapyStatus" in LogContent[lineNum]:
+                                    components = LogContent[lineNum].split(" ")
+                                    for i in range(len(components)):
+                                        if components[i] == "=":
+                                            LogEntry["Payload"]["TherapyEvent"]["Status"] = int(components[i+1], 16)
+                                            break
+                                        
+                                lineNum += 1
+                except Exception as e:
+                    print(e)
+                    
+                lineNum += 1
+            return AllLogs[1:]
+
 def findLatestConfiguration(Configurations, UnixTimeOfFirstPacket, Type):
     TargetConfiguration = dict()
     for config in Configurations:
@@ -1077,6 +1247,8 @@ def LoadData(DataFolder, DataType=["Lfp", "FFT", "Power", "Accelerometer", "Adap
     Data["StimLogs"] = getStimulationLogs(DataFolder)
     Data["EventLogs"] = getEventLogs(DataFolder)
     Data["ErrorLogs"] = getErrorLogs(DataFolder)
+    Data["SystemLogs"] = getSystemEventLogs(DataFolder)
+    Data["AdaptiveLogs"] = getAdaptiveSensingLog(DataFolder)
     
     return Data
 
