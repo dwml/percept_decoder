@@ -180,6 +180,10 @@ def getDeviceSettings(DataFolder):
                         Configuration["Adaptive"]["State"] = list()
                         for n in range(9):
                             Configuration["Adaptive"]["State"].append(DeviceConfiguration["AdaptiveConfig"]["state" + str(n)])
+
+        # Adaptive Configuration
+        if "DetectionConfig" in DeviceConfiguration.keys():
+            Configuration["Detector"] = DeviceConfiguration["DetectionConfig"]
                 
         # Therapy Configuration
         for n in range(4):
@@ -1028,7 +1032,17 @@ def getSystemEventLogs(DataFolder):
 def findLatestConfiguration(Configurations, UnixTimeOfFirstPacket, Type):
     TargetConfiguration = dict()
     for config in Configurations:
-        if "SensingConfiguration" in config.keys() and config["Time"] < UnixTimeOfFirstPacket:
+        if Type == "AdaptiveStim":
+            if config["Time"] < UnixTimeOfFirstPacket:
+                combinedConfig = dict()
+                if "Detector" in config.keys() or "Adaptive" in config.keys():
+                    TargetConfiguration = dict()
+                    if "Detector" in config.keys():
+                        TargetConfiguration["Detector"] = config["Detector"]
+                    if "Adaptive" in config.keys():
+                        TargetConfiguration["Adaptive"] = config["Adaptive"]
+        
+        elif "SensingConfiguration" in config.keys() and config["Time"] < UnixTimeOfFirstPacket:
             if Type == "Power":
                 if "FFT" in config["SensingConfiguration"].keys():
                     TargetConfiguration = config["SensingConfiguration"]["FFT"]
@@ -1050,9 +1064,6 @@ def findLatestConfiguration(Configurations, UnixTimeOfFirstPacket, Type):
             if "SenseStates" in config.keys() and config["Time"] < UnixTimeOfFirstPacket:
                 if "FFTChannel" in config["SenseStates"].keys():
                     TargetConfiguration["FFTChannel"] = config["SenseStates"]["FFTChannel"]
-        
-    if Type == "AdaptiveStim":
-        TargetConfiguration = Configurations[0]
         
     return TargetConfiguration
 
@@ -1240,9 +1251,9 @@ def LoadData(DataFolder, DataType=["Lfp", "FFT", "Power", "Accelerometer", "Adap
                             Data[key][n][field] = Data[key][n][field][slice(indexes[0], indexes[-1]+1, 1)]
                         else:
                             Data[key][n][field] = Data[key][n][field][SegmentSelection]
-                
+
                     #Data[key][n]["Configuration"] = findLatestConfiguration(Data["Config"], Data[key][n]["UnixTime"][0], key)
-                    Data[key][n]["Configuration"] = Data["Config"]
+                    Data[key][n]["Configuration"] = findLatestConfiguration(Data["Config"], Data[key][n]["UnixTime"][0], key)
                     
     Data["StimLogs"] = getStimulationLogs(DataFolder)
     Data["EventLogs"] = getEventLogs(DataFolder)
