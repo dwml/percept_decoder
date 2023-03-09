@@ -1026,7 +1026,9 @@ def extractPatientInformation(JSON, sourceData=dict()):
                             elif measurement["ResultValue"] == ">10K":
                                 measurement["ResultValue"] = 99999
                             Data["Impedance"][hemisphere]["Bipolar"][electrodeID1 % 4][electrodeID2 % 4] = measurement["ResultValue"]
-                  
+                    Data["Impedance"][hemisphere]["Monopolar"] = Data["Impedance"][hemisphere]["Monopolar"].tolist()
+                    Data["Impedance"][hemisphere]["Bipolar"] = Data["Impedance"][hemisphere]["Bipolar"].tolist()
+                    
     for key in Data.keys():
         sourceData[key] = Data[key]
     return Data
