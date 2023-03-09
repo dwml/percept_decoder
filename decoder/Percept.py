@@ -988,6 +988,8 @@ def extractPatientInformation(JSON, sourceData=dict()):
                             _, electrodeID = reformatElectrodeDef(measurement["Electrode2"])
                             if measurement["ResultValue"] == "HIGH":
                                 measurement["ResultValue"] = 999999
+                            elif measurement["ResultValue"] == "LOW":
+                                measurement["ResultValue"] = -1000
                             elif measurement["ResultValue"] == ">5K":
                                 measurement["ResultValue"] = 9999
                             elif measurement["ResultValue"] == ">10K":
@@ -999,6 +1001,8 @@ def extractPatientInformation(JSON, sourceData=dict()):
                             _, electrodeID2 = reformatElectrodeDef(measurement["Electrode2"]) 
                             if measurement["ResultValue"] == "HIGH":
                                 measurement["ResultValue"] = 999999
+                            elif measurement["ResultValue"] == "LOW":
+                                measurement["ResultValue"] = -1000
                             elif measurement["ResultValue"] == ">5K":
                                 measurement["ResultValue"] = 9999
                             elif measurement["ResultValue"] == ">10K":
@@ -1010,6 +1014,8 @@ def extractPatientInformation(JSON, sourceData=dict()):
                             _, electrodeID = reformatElectrodeDef(measurement["Electrode2"])
                             if measurement["ResultValue"] == "HIGH":
                                 measurement["ResultValue"] = 999999
+                            elif measurement["ResultValue"] == "LOW":
+                                measurement["ResultValue"] = -1000
                             elif measurement["ResultValue"] == ">5K":
                                 measurement["ResultValue"] = 9999
                             elif measurement["ResultValue"] == ">10K":
@@ -1021,6 +1027,8 @@ def extractPatientInformation(JSON, sourceData=dict()):
                             _, electrodeID2 = reformatElectrodeDef(measurement["Electrode2"])
                             if measurement["ResultValue"] == "HIGH":
                                 measurement["ResultValue"] = 999999
+                            elif measurement["ResultValue"] == "LOW":
+                                measurement["ResultValue"] = -1000
                             elif measurement["ResultValue"] == ">5K":
                                 measurement["ResultValue"] = 9999
                             elif measurement["ResultValue"] == ">10K":
