@@ -1100,6 +1100,15 @@ def processTherapySettings(TherapyGroup):
                 del(Therapy[hemisphere]["SensingSetup"]["ChannelSignalResult"])
             if "AdaptiveTherapy" in TherapyGroup["ProgramSettings"]["SensingChannel"][side].keys():
                 Therapy[hemisphere]["AdaptiveSetup"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["AdaptiveTherapy"]
+                # Adaptive Specific Parameters
+                Therapy[hemisphere]["AdaptiveSetup"]["Status"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["AdaptiveTherapyStatus"]
+                if not Therapy[hemisphere]["AdaptiveSetup"]["Status"] == "ADBSStatusDef.NOT_CONFIGURED":
+                    Therapy[hemisphere]["AdaptiveSetup"]["Mode"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["Mode"]
+                    Therapy[hemisphere]["AdaptiveSetup"]["RampUpTime"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["TransitionUpInMilliSeconds"]
+                    Therapy[hemisphere]["AdaptiveSetup"]["RampDownTime"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["TransitionDownInMilliSeconds"]
+                    if "GangedToHemisphere" in TherapyGroup["ProgramSettings"]["SensingChannel"][side].keys():
+                        Therapy[hemisphere]["AdaptiveSetup"]["Bypass"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["GangedToHemisphere"]
+            
             Therapy[hemisphere]["SensingSetup"]["Status"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["BrainSensingStatus"]
 
     if "LeftHemisphere" in TherapyGroup["ProgramSettings"]:
@@ -1114,7 +1123,8 @@ def processTherapySettings(TherapyGroup):
                 Therapy["LeftHemisphere"]["Frequency"] = [TherapyGroup["ProgramSettings"]["RateInHertz"],TherapyGroup["ProgramSettings"]["RateInHertz"]]
             else:
                 Therapy["LeftHemisphere"]["Frequency"] = [TherapyGroup["ProgramSettings"]["LeftHemisphere"]["Programs"][0]["RateInHertz"],
-                        
+                                                          TherapyGroup["ProgramSettings"]["LeftHemisphere"]["Programs"][1]["RateInHertz"]]
+            
             Therapy["LeftHemisphere"]["ProgramId"] = list()
             Therapy["LeftHemisphere"]["PulseWidth"] = list()
             Therapy["LeftHemisphere"]["Amplitude"] = list()
