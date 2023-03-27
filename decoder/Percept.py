@@ -1098,6 +1098,8 @@ def processTherapySettings(TherapyGroup):
             Therapy[hemisphere]["SensingSetup"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["SensingSetup"]
             if "ChannelSignalResult" in Therapy[hemisphere]["SensingSetup"].keys():
                 del(Therapy[hemisphere]["SensingSetup"]["ChannelSignalResult"])
+            if "AdaptiveTherapy" in TherapyGroup["ProgramSettings"]["SensingChannel"][side].keys():
+                Therapy[hemisphere]["AdaptiveSetup"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["AdaptiveTherapy"]
             Therapy[hemisphere]["SensingSetup"]["Status"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["BrainSensingStatus"]
 
     if "LeftHemisphere" in TherapyGroup["ProgramSettings"]:
@@ -1112,8 +1114,7 @@ def processTherapySettings(TherapyGroup):
                 Therapy["LeftHemisphere"]["Frequency"] = [TherapyGroup["ProgramSettings"]["RateInHertz"],TherapyGroup["ProgramSettings"]["RateInHertz"]]
             else:
                 Therapy["LeftHemisphere"]["Frequency"] = [TherapyGroup["ProgramSettings"]["LeftHemisphere"]["Programs"][0]["RateInHertz"],
-                                                          TherapyGroup["ProgramSettings"]["LeftHemisphere"]["Programs"][1]["RateInHertz"]]
-            
+                        
             Therapy["LeftHemisphere"]["ProgramId"] = list()
             Therapy["LeftHemisphere"]["PulseWidth"] = list()
             Therapy["LeftHemisphere"]["Amplitude"] = list()
