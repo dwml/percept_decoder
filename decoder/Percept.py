@@ -988,6 +988,8 @@ def extractPatientInformation(JSON, sourceData=dict()):
                             _, electrodeID = reformatElectrodeDef(measurement["Electrode2"])
                             if measurement["ResultValue"] == "HIGH":
                                 measurement["ResultValue"] = 999999
+                            elif measurement["ResultValue"] == "LOW":
+                                measurement["ResultValue"] = -1000
                             elif measurement["ResultValue"] == ">5K":
                                 measurement["ResultValue"] = 9999
                             elif measurement["ResultValue"] == ">10K":
@@ -999,6 +1001,8 @@ def extractPatientInformation(JSON, sourceData=dict()):
                             _, electrodeID2 = reformatElectrodeDef(measurement["Electrode2"]) 
                             if measurement["ResultValue"] == "HIGH":
                                 measurement["ResultValue"] = 999999
+                            elif measurement["ResultValue"] == "LOW":
+                                measurement["ResultValue"] = -1000
                             elif measurement["ResultValue"] == ">5K":
                                 measurement["ResultValue"] = 9999
                             elif measurement["ResultValue"] == ">10K":
@@ -1010,6 +1014,8 @@ def extractPatientInformation(JSON, sourceData=dict()):
                             _, electrodeID = reformatElectrodeDef(measurement["Electrode2"])
                             if measurement["ResultValue"] == "HIGH":
                                 measurement["ResultValue"] = 999999
+                            elif measurement["ResultValue"] == "LOW":
+                                measurement["ResultValue"] = -1000
                             elif measurement["ResultValue"] == ">5K":
                                 measurement["ResultValue"] = 9999
                             elif measurement["ResultValue"] == ">10K":
@@ -1021,12 +1027,16 @@ def extractPatientInformation(JSON, sourceData=dict()):
                             _, electrodeID2 = reformatElectrodeDef(measurement["Electrode2"])
                             if measurement["ResultValue"] == "HIGH":
                                 measurement["ResultValue"] = 999999
+                            elif measurement["ResultValue"] == "LOW":
+                                measurement["ResultValue"] = -1000
                             elif measurement["ResultValue"] == ">5K":
                                 measurement["ResultValue"] = 9999
                             elif measurement["ResultValue"] == ">10K":
                                 measurement["ResultValue"] = 99999
                             Data["Impedance"][hemisphere]["Bipolar"][electrodeID1 % 4][electrodeID2 % 4] = measurement["ResultValue"]
-                  
+                    Data["Impedance"][hemisphere]["Monopolar"] = Data["Impedance"][hemisphere]["Monopolar"].tolist()
+                    Data["Impedance"][hemisphere]["Bipolar"] = Data["Impedance"][hemisphere]["Bipolar"].tolist()
+                    
     for key in Data.keys():
         sourceData[key] = Data[key]
     return Data
@@ -1088,6 +1098,17 @@ def processTherapySettings(TherapyGroup):
             Therapy[hemisphere]["SensingSetup"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["SensingSetup"]
             if "ChannelSignalResult" in Therapy[hemisphere]["SensingSetup"].keys():
                 del(Therapy[hemisphere]["SensingSetup"]["ChannelSignalResult"])
+            if "AdaptiveTherapy" in TherapyGroup["ProgramSettings"]["SensingChannel"][side].keys():
+                Therapy[hemisphere]["AdaptiveSetup"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["AdaptiveTherapy"]
+                # Adaptive Specific Parameters
+                Therapy[hemisphere]["AdaptiveSetup"]["Status"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["AdaptiveTherapyStatus"]
+                if not Therapy[hemisphere]["AdaptiveSetup"]["Status"] == "ADBSStatusDef.NOT_CONFIGURED":
+                    Therapy[hemisphere]["AdaptiveSetup"]["Mode"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["Mode"]
+                    Therapy[hemisphere]["AdaptiveSetup"]["RampUpTime"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["TransitionUpInMilliSeconds"]
+                    Therapy[hemisphere]["AdaptiveSetup"]["RampDownTime"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["TransitionDownInMilliSeconds"]
+                    if "GangedToHemisphere" in TherapyGroup["ProgramSettings"]["SensingChannel"][side].keys():
+                        Therapy[hemisphere]["AdaptiveSetup"]["Bypass"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["GangedToHemisphere"]
+            
             Therapy[hemisphere]["SensingSetup"]["Status"] = TherapyGroup["ProgramSettings"]["SensingChannel"][side]["BrainSensingStatus"]
 
     if "LeftHemisphere" in TherapyGroup["ProgramSettings"]:
