@@ -11,6 +11,8 @@ from stl import mesh
 from skimage import measure
 import trimesh
 
+import ants.core.ants_transform_io as antsTransform
+
 from utility.SignalProcessingUtility import rssq
 
 def decodeUFVTK(filename):
@@ -350,11 +352,13 @@ def antsApplyTransform(INPUT_IMAGE, OUTPUT_IMAGE, TRANSFORMATION_MAT, referenceI
                     shell=True)
 
 def generateANTsTransformation(tform, filename):
-    AffineTransform_double_3_3 = np.linalg.inv(tform)[:,:3].reshape((12,1))
-    AffineTransform_double_3_3[9] *= -1
-    AffineTransform_double_3_3[10] *= -1
-    sio.savemat(filename, {"AffineTransform_double_3_3": AffineTransform_double_3_3, 
-                           "fixed": np.zeros((3,1))}, format="4")
+    rotateMat = np.array(tform[:3,:3])
+    rotationVec = Rotation.from_matrix(rotateMat).as_euler("xyz",degrees=True)
+    translationVec = np.array([0,0,0])
+    scaleVec = np.diag(tform[:3,:3])
+    matrix = computeTransformationMatrix(scaleVec, translationVec*[1,1,1], rotationVec*[1,1,-1])
+    antsTForm = antsTransform.create_ants_transform(matrix=matrix, translation=tform[-1,:3]*[-1,-1,1])
+    antsTransform.write_transform(antsTForm, filename)
 
 def loadAtlasTransform(filename):
     fmrisavedata = sio.loadmat(filename, simplify_cells=True)
@@ -372,6 +376,7 @@ def loadAtlasTransform(filename):
         rotation = savestruct["rotationright"][[1,0,2]].astype(float)
         # UF Software actually invert the following parameters on display.
         translation[0] *= -1
+        rotation[0] *= -1
         rotation[1] *= -1
         rotation[2] *= -1
         transform["Right"] = computeTransformationMatrix(scale, translation, rotation)
