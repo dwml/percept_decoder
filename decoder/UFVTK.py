@@ -71,16 +71,29 @@ def encodeUFVTK(nii, filename):
         return np.array(struct.unpack("<f", struct.pack(">f", value)), dtype=np.float32).tobytes()
 
     rawData = nii.get_fdata()
-
+    affine = nii.header.get_best_affine()
+    origin = affine[:3,-1]
+    
     xdim = nii.header["dim"][1]
     ydim = nii.header["dim"][2]
     zdim = nii.header["dim"][3]
+    
+    if affine[0,0] < 0:
+        rawData = np.flip(rawData,0)
+        origin[0] -= xdim * nii.header["pixdim"][1]
+    if affine[1,1] < 0:
+        rawData = np.flip(rawData,1)
+        origin[1] -= ydim * nii.header["pixdim"][2]
+    if affine[2,2] < 0:
+        rawData = np.flip(rawData,2)
+        origin[2] -= zdim * nii.header["pixdim"][3]
+    
     xoffset = int((512-xdim)/2)
     yoffset = int((512-ydim)/2)
     vtkImage = np.zeros((512,512,zdim), dtype=np.int16)
     for k in range(zdim):
         vtkImage[slice(xoffset,xoffset+xdim),slice(yoffset,yoffset+ydim),k] = rawData[:,:,k]
-    vtkImage = np.reshape(vtkImage,[512*512*zdim], order="F")
+    vtkImage = np.reshape(vtkImage+1024,[512*512*zdim], order="F")
 
     with open(filename,"wb") as file:
         # Header
@@ -93,10 +106,8 @@ def encodeUFVTK(nii, filename):
         for value in nii.header["pixdim"][1:4]:
             file.write(swapSinglebuffer(value))
         # pixel origin
-        affine = nii.header.get_sform()
-        origin = affine[:3,-1]
-        file.write(swapSinglebuffer(-xoffset*nii.header["pixdim"][1]+origin[0]))
-        file.write(swapSinglebuffer(-yoffset*nii.header["pixdim"][2]+origin[1]))
+        file.write(swapSinglebuffer(-xoffset*nii.header["pixdim"][1]+origin[0]+1))
+        file.write(swapSinglebuffer(-yoffset*nii.header["pixdim"][2]+origin[1]+1))
         file.write(swapSinglebuffer(origin[2]))
         # brw transform
         file.write(np.array([0,0,0,0,63,128,0,0,0,0,0,0,63,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,63,128,0,0],dtype=np.int8).tobytes())

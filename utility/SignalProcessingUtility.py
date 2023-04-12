@@ -70,9 +70,9 @@ def smooth(data, window):
 def addJitter(data, shift=0.1):
     return np.random.randn(len(data)) * np.std(data) * shift + data
 
-def removeOutlier(data, method="zscore"):
+def removeOutlier(data, method="zscore", zlim=3):
     if method == "zscore":
-        return data[rangeSelection(data, [np.mean(data)-np.std(data)*3,np.mean(data)+np.std(data)*3])]
+        return data[rangeSelection(data, [np.mean(data)-np.std(data)*zlim,np.mean(data)+np.std(data)*zlim])]
 
 def linearfit(x, y, x_new):
     coefficients = np.polyfit(x, y, 1)

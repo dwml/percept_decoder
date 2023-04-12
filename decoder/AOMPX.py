@@ -34,6 +34,7 @@ E_Status_Stim_Status                = 4
 # Generic Message Definitions
 E_GenMes_MessageMotorMilage       = 3 
 E_GenMes_HeadStageStatuses        = 6 
+E_GenMes_TMDeactivate             = 14
 E_GenMes_TextMessage              = 20
 E_GenMes_PortAsStrobe             = 21
 E_GenMes_ChannelState             = 25
@@ -45,12 +46,30 @@ E_Module_ModuleStimulus          = 1
 E_Module_AnalogOutputParam       = 3 
 E_Module_ElectrodeParam          = 5 
 
+def removeMPXDateTime(filename):
+    with open(filename, "rb") as file:
+        rawBytes = file.read()
+        
+    rawBytesArray = bytearray(rawBytes)
+    
+    blockOffset = 0
+    while blockOffset < len(rawBytes) - 5:
+        blockLength = int.from_bytes(rawBytes[slice(blockOffset + 0, blockOffset + 2)], byteorder="little")
+        blockType = str(bytes([rawBytes[blockOffset + 2]]), "utf-8")
+        
+        if rawBytes[blockOffset + 2] == 104:
+            rawBytesArray[slice(blockOffset+10, blockOffset+18)] = bytearray(np.array([0,0,0,0,1,1,208,7], dtype=np.uint8).tobytes())
+            
+        blockOffset += blockLength
+        
+    with open(filename, "wb+") as file:
+        file.write(bytes(rawBytesArray))
+
 
 def decodeMPX(filename, StreamToParse=list()):
     """
-    Python implementation of apply_transformation given a standard affine 3D matrix.
-    It is only being used as backup if ANTs is not available, as ANTs is significantly faster and consume less memory.
-
+    AlphaOmega MPX File Format Decoder for Python. 
+    
     Parameters:
     filename (string): Absolute/Relative path to NeuroOmega MPX file.
     StreamToParse (array): Array of headers to parse.
@@ -88,9 +107,27 @@ def decodeMPX(filename, StreamToParse=list()):
             Content["Header"]["ApplicationName"] = rawBytes[blockOffset+41:blockOffset+51].rstrip(b'\x00').decode("utf-8")
             Content["Header"]["ResourceVersion"] = rawBytes[blockOffset+51:blockOffset+55].rstrip(b'\x00').decode("utf-8")
         
+        # ASCII '0' = 48
+        elif rawBytes[blockOffset + 2] == 48:
+            pass
+        
+        # ASCII '1' = 49
+        elif rawBytes[blockOffset + 2] == 49:
+            pass
+        
         # ASCII '2' = 50
         elif rawBytes[blockOffset + 2] == 50:
             ChannelDefinitionPackage.append((blockOffset, blockLength))
+        
+        # ASCII '3' = 51
+        elif rawBytes[blockOffset + 2] == 51:
+            pass
+        
+        # ASCII '4' = 52
+        elif rawBytes[blockOffset + 2] == 52:
+            #ChannelDataPackage.append((blockOffset, blockLength))
+            #print(blockLength)
+            pass
         
         # ASCII '5' = 53
         elif rawBytes[blockOffset + 2] == 53:
@@ -109,6 +146,10 @@ def decodeMPX(filename, StreamToParse=list()):
             Stream["ChannelName"] = rawBytes[blockOffset+14:blockOffset+blockLength-4].rstrip(b'\x00').decode("utf-8")
             Stream["Channel"] = np.frombuffer(rawBytes[blockOffset+8:blockOffset+10], dtype=np.int16)[0]
     
+        # ASCII 'b' = 98
+        elif rawBytes[blockOffset + 2] == 98:
+            pass
+    
         # ASCII 'E' = 69
         elif rawBytes[blockOffset + 2] == 69:
             StreamStruct = dict()
@@ -120,14 +161,14 @@ def decodeMPX(filename, StreamToParse=list()):
                 StreamStruct["StatusByte"] = rawBytes[blockOffset+11]
                 StreamStruct["PackageType"] = np.frombuffer(rawBytes[blockOffset+12:blockOffset+14], dtype=np.int16)[0]
                 
-                if not StreamStruct["PackageType"] in StreamToParse:
+                if not StreamStruct["PackageType"] in StreamToParse and not len(StreamToParse) == 0:
                     blockOffset += blockLength
                     continue
                     
                 if StreamStruct["PackageType"] == E_Command_Generic_Message:
                     StreamStruct["MessageType"] = np.frombuffer(rawBytes[blockOffset+14:blockOffset+16], dtype=np.int16)[0]
                     
-                    if not StreamStruct["MessageType"] in StreamToParse:
+                    if not StreamStruct["MessageType"] in StreamToParse and not len(StreamToParse) == 0:
                         blockOffset += blockLength
                         continue
                     
@@ -241,6 +282,9 @@ def decodeMPX(filename, StreamToParse=list()):
                     StreamStruct["Impedances"] = np.frombuffer(rawBytes[blockOffset+16:blockOffset+80], dtype=np.int32)
                     StreamStruct["ChannelGroupID"] = np.frombuffer(rawBytes[blockOffset+80:blockOffset+82], dtype=np.int16)[0]
                 
+                else:
+                    print(StreamStruct["PackageType"])
+                
             elif rawBytes[blockOffset+10] == 83:
                 StreamStruct["isStatus"] = True
                 StreamStruct["StatusByte"] = rawBytes[blockOffset+11]
@@ -269,9 +313,15 @@ def decodeMPX(filename, StreamToParse=list()):
                     if StreamStruct["MessageType"] == E_GenMes_MessageMotorMilage:
                         StreamStruct["MotorMilage"] = np.frombuffer(rawBytes[blockOffset+16:blockOffset+20], dtype=np.int32)[0]
                         StreamStruct["MotorCardStatus"] = np.frombuffer(rawBytes[blockOffset+20:blockOffset+22], dtype=np.int16)[0] == 0
-    
+                        
+            else:
+                print(rawBytes[blockOffset+10])
+                
             Stream["Data"].append(StreamStruct)
-        
+            
+        else:
+            print(rawBytes[blockOffset + 2])
+            
         blockOffset += blockLength
     
     Content["Stream"].append(Stream)
