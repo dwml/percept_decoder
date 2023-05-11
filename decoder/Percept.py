@@ -1380,12 +1380,33 @@ def extractStreamingData(JSON, sourceData=dict()):
             del(Stream["SampleRateInHz"])
         
     if "StreamingPower" in Data.keys():
+        if len(Data["StreamingPower"]) < len(Data["StreamingTD"]) / 2:
+            # This condition occur if there is no corresponding Power Channel data for either hemisphere of TimeDomain Channel
+            StreamToInclude = np.zeros(len(Data["StreamingTD"]),dtype=bool)
+            Timestamps = np.array([datetime.fromisoformat(Data["StreamingTD"][i]["FirstPacketDateTime"][:-1]+"+00:00").timestamp() for i in range(len(Data["StreamingTD"]))])
+            for i in range(len(Data["StreamingPower"])):
+                TargetTimestamp = datetime.fromisoformat(Data["StreamingPower"][i]["FirstPacketDateTime"][:-1]+"+00:00").timestamp()
+                StreamToInclude[np.argmin(abs(TargetTimestamp - Timestamps))] = True
+            
+            for i in range(len(StreamToInclude)):
+                for j in range(i+1, len(StreamToInclude)):
+                    if Data["StreamingTD"][j]["FirstPacketDateTime"] == Data["StreamingTD"][i]["FirstPacketDateTime"]:
+                        StreamToInclude[j] = StreamToInclude[i]
+            
+            # Have to Remove Recordings for now. Use JSON to get data again later
+            oldStreamTD = copy.deepcopy(Data["StreamingTD"])
+            Data["StreamingTD"] = []
+            for i in range(len(StreamToInclude)):
+                if StreamToInclude[i]:
+                    Data["StreamingTD"].append(oldStreamTD[i])
+            del(oldStreamTD)
+            
         if len(Data["StreamingPower"]) < len(Data["StreamingTD"]):
             for i in range(1,len(Data["StreamingTD"])):
                 if Data["StreamingTD"][i]["FirstPacketDateTime"] == Data["StreamingTD"][i-1]["FirstPacketDateTime"]:
                     Data["StreamingPower"].insert(i,copy.deepcopy(Data["StreamingPower"][i-1]))
                     Data["StreamingPower"][i]["Channel"] += "_Duplicate"
-        
+    
         # This is a process to delete extremely short time-domain data without corresponding power domain data.
         if len(Data["StreamingPower"]) < len(Data["StreamingTD"]):
             StreamToInclude = np.zeros(len(Data["StreamingTD"]),dtype=bool)
