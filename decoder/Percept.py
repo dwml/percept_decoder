@@ -894,8 +894,9 @@ def extractPerceptJSON(JSON):
     Returns:
       Processed Percept Data Format.
     """
-
-    FunctionsToProcess = [extractPatientInformation, extractTherapySettings, extractStreamingData, 
+    
+    # extractStreamingData
+    FunctionsToProcess = [extractPatientInformation, extractTherapySettings, extractTimeDomainStreamingData, extractPowerDomainStreamingData, 
                           extractIndefiniteStreaming, extractBrainSenseSurvey, extractSignalCalibration,
                           extractChronicLFP]
     
@@ -904,16 +905,9 @@ def extractPerceptJSON(JSON):
         try:
             func(JSON,Data)
         except:
-            pass
-    
-    Data = checkMissingPackage(Data)
-    
-    if "StreamingPower" in Data.keys() and "StreamingTD" in Data.keys():
-        for i in range(len(Data["StreamingPower"])):
-            Data["StreamingTD"][i]["PowerDomain"] = copy.deepcopy(Data["StreamingPower"][i])
-            Data["StreamingTD"][i]["PowerDomain"]["Channel"] = Data["StreamingTD"][i]["PowerDomain"]["Channel"].replace("_Duplicate","")
-    
-    Data = processBreakingTimeDomain(Data)
+            if not "ProcessFailure" in Data.keys():
+                Data["ProcessFailure"] = []
+            Data["ProcessFailure"].append(str(func))
     
     return Data
 
@@ -1289,8 +1283,179 @@ def extractTherapySettings(JSON, sourceData=dict()):
                     
                     Data["TherapyChangeHistory"].append({"DateTime": switchTime, "OldGroup": OldGroupId, "NewGroup": NewGroupId, "OldGroupId": event["OldGroupId"], "NewGroupId": event["NewGroupId"]})
                         
+                elif "ParameterTrendId" in event.keys() and "TherapyStatus" in event.keys():
+                    switchTime = datetime.fromisoformat(event["DateTime"][:-1]+"+00:00").astimezone(dateutil.tz.tzlocal())
+                    Data["TherapyChangeHistory"].append({"DateTime": switchTime, "TherapyStatus": event["TherapyStatus"] == "TherapyChangeStatusDef.ON"})
+                    
     for key in Data.keys():
         sourceData[key] = Data[key]
+    return Data
+
+def extractTimeDomainStreamingData(JSON, sourceData=dict()):
+    """ Extract BrainSense Streaming Time-Domain Data
+
+    This is a modified function that handles TimeDomain Data alone without information from PowerDomain Data. 
+
+    Args:
+      JSON: The raw exported Percept JSON object.
+      sourceData: Processed Percept Data Format (up to current step).
+
+    Returns:
+      Processed Percept Data Format.
+    """
+
+    Data = dict()
+    if "BrainSenseTimeDomain" in JSON.keys():
+        key = "BrainSenseTimeDomain"
+        Data["StreamingTD"] = copy.deepcopy(JSON[key])
+        for Stream in Data["StreamingTD"]:
+            Stream["Sequences"] = np.array(text2num(Stream["GlobalSequences"].split(",")))
+            Stream["PacketSizes"] = np.array(text2num(Stream["GlobalPacketSizes"].split(",")))
+            Stream["Ticks"] = np.array(text2num(Stream["TicksInMses"].split(",")))
+            Stream["Data"] = np.array(Stream["TimeDomainData"])
+            Stream["SamplingRate"] = text2num(Stream["SampleRateInHz"])
+            Stream["FirstPacketDateTime"] = getTimestamp(Stream["FirstPacketDateTime"])
+            del(Stream["GlobalSequences"])
+            del(Stream["TicksInMses"])
+            del(Stream["TimeDomainData"])
+            del(Stream["SampleRateInHz"])
+            
+            if len(Stream["Sequences"]) > 1:
+                # There is situation when StreamingTD first packet is outlier sequence packet
+                if Stream["Sequences"][0] > Stream["Sequences"][1]:
+                    Stream["Sequences"] = Stream["Sequences"][1:]
+                    Stream["PacketSizes"] = Stream["PacketSizes"][1:]
+                    Stream["Ticks"] = Stream["Ticks"][1:]
+                    Stream["Data"] = Stream["Data"][Stream["PacketSizes"][0]:]
+    
+        i = 0
+        while i < len(Data["StreamingTD"]):
+            if len(Data["StreamingTD"][i]["Sequences"]) == 1:
+                del(Data["StreamingTD"][i])
+            else:
+                i += 1
+        
+
+        for nStream in range(len(Data["StreamingTD"])):
+            # TicksInMs
+            ChangesInMs = np.diff(Data["StreamingTD"][nStream]["Ticks"])
+            TimePerPacket = np.median(ChangesInMs)
+            if len(np.where(ChangesInMs < 0)[0]) > 0:
+                print("TicksInMs Revamped")
+                raise Exception("Bad Format in TicksInMs")
+            
+            MissingPacket = np.where(ChangesInMs > TimePerPacket)[0] + 1
+            TDSequences = np.arange(len(Data["StreamingTD"][nStream]["Ticks"]))
+            Data["StreamingTD"][nStream]["Missing"] = np.zeros(Data["StreamingTD"][nStream]["Data"].shape)
+            
+            # is all missing sequence accounted for?
+            if len(MissingPacket) > 0:
+                for missingIndex in MissingPacket:
+                    if not ChangesInMs[missingIndex-1] % TimePerPacket == 0:
+                        print(f"Time Skip is not full package drop {nStream}")
+                    
+                    numMissingPacket = int(ChangesInMs[missingIndex-1] / TimePerPacket - 1)
+                    insertionIndex = np.where(TDSequences < missingIndex)[0][-1] + 1
+                    startIndex = int(np.sum(Data["StreamingTD"][nStream]["PacketSizes"][:insertionIndex]))
+                    
+                    if Data["StreamingTD"][nStream]["PacketSizes"][insertionIndex-1] == 62:
+                        insertionPackets = np.array([63+(i%2) for i in range(numMissingPacket)])
+                    else:
+                        insertionPackets = np.array([62+(i%2) for i in range(numMissingPacket)])
+                        
+                    Data["StreamingTD"][nStream]["PacketSizes"] = np.concatenate((Data["StreamingTD"][nStream]["PacketSizes"][:insertionIndex], insertionPackets, Data["StreamingTD"][nStream]["PacketSizes"][insertionIndex:]))
+                    Data["StreamingTD"][nStream]["Data"] = np.concatenate((Data["StreamingTD"][nStream]["Data"][:startIndex],np.zeros(np.sum(insertionPackets)),Data["StreamingTD"][nStream]["Data"][startIndex:]))
+                    Data["StreamingTD"][nStream]["Missing"] = np.concatenate((Data["StreamingTD"][nStream]["Missing"][:startIndex],np.ones(np.sum(insertionPackets)),Data["StreamingTD"][nStream]["Missing"][startIndex:]))
+                print(f"Warning: Missing sequence occured for Stream #{nStream}, Data insertion complete. Check ['Missing'] field.")
+
+    for key in Data.keys():
+        sourceData[key] = Data[key]
+        
+    return Data
+
+def extractPowerDomainStreamingData(JSON, sourceData=dict()):
+    """ Extract BrainSense Streaming Power-Domain Data
+
+    This is a modified function that handles Power and Stimulation Data alone without information from TimeDomain Data. 
+
+    Args:
+      JSON: The raw exported Percept JSON object.
+      sourceData: Processed Percept Data Format (up to current step).
+
+    Returns:
+      Processed Percept Data Format.
+    """
+
+    Data = dict()
+    if "BrainSenseLfp" in JSON.keys():
+        key = "BrainSenseLfp"
+        Data["StreamingPower"] = copy.deepcopy(JSON[key])
+        for Stream in Data["StreamingPower"]:
+            Stream["Power"] = np.ndarray((len(Stream["LfpData"]), 2))
+            Stream["Stimulation"] = np.ndarray((len(Stream["LfpData"]), 2))
+            Stream["Time"] = np.ndarray((len(Stream["LfpData"]), 1))
+            Stream["Sequences"] = np.ndarray((len(Stream["LfpData"]), 1))
+            Stream["TimeSinceStimulationChange"] = np.zeros((len(Stream["LfpData"]), 2))
+            Stream["FirstPacketDateTime"] = getTimestamp(Stream["FirstPacketDateTime"])
+            for PackageID in range(len(Stream["LfpData"])):
+                Stream["Power"][PackageID,0] = Stream["LfpData"][PackageID]["Left"]["LFP"]
+                Stream["Stimulation"][PackageID,0] = Stream["LfpData"][PackageID]["Left"]["mA"]
+                Stream["Power"][PackageID,1] = Stream["LfpData"][PackageID]["Right"]["LFP"]
+                Stream["Stimulation"][PackageID,1] = Stream["LfpData"][PackageID]["Right"]["mA"]
+                Stream["Sequences"][PackageID] = Stream["LfpData"][PackageID]["Seq"]
+                Stream["Time"][PackageID] = Stream["LfpData"][PackageID]["TicksInMs"] / 1000.0
+                
+            Stream["InitialTickInMs"] = Stream["LfpData"][0]["TicksInMs"] % 1000.0
+            Stream["Time"] -= Stream["Time"][0]
+            Stream["Time"] = Stream["Time"].flatten()
+            Stream["SamplingRate"] = text2num(Stream["SampleRateInHz"])
+            Stream["Sequences"] = Stream["Sequences"].flatten()
+
+            """ Does not include this code for future
+            for PackageID in range(len(Stream["LfpData"])):
+                if PackageID == 0:        
+                    lastStimulationChanged = [0,0]
+                else:
+                    for chan in range(2):
+                        if Stream["Stimulation"][PackageID,chan] != Stream["Stimulation"][PackageID-1,chan]:
+                            lastStimulationChanged[chan] = Stream["Time"][PackageID-1]
+                        Stream["TimeSinceStimulationChange"][PackageID,chan] = Stream["Time"][PackageID] - lastStimulationChanged[chan]
+            
+            Stream["TimeSinceStimulationChange"] = np.round(Stream["TimeSinceStimulationChange"], 1)
+            """
+
+            del(Stream["LfpData"])
+            del(Stream["SampleRateInHz"])
+
+        for nStream in range(len(Data["StreamingPower"])):
+            ChangesInMs = np.around(np.diff(Data["StreamingPower"][nStream]["Time"]),3)
+            if len(np.where(ChangesInMs < 0)[0]) > 0:
+                print("TicksInMs Reversed")
+                raise Exception("Bad Format in TicksInMs for Power Channel")
+            
+            TimePerPacket = np.percentile(ChangesInMs,5)
+            MissingPacket = np.where(ChangesInMs > TimePerPacket)[0] + 1
+
+            Data["StreamingPower"][nStream]["Missing"] = np.zeros(Data["StreamingPower"][nStream]["Power"].shape)
+            if len(MissingPacket) > 0:
+                newTimestamp = np.arange(Data["StreamingPower"][nStream]["Time"][0], Data["StreamingPower"][nStream]["Time"][-1]+TimePerPacket*len(MissingPacket), TimePerPacket)
+                processedPower = np.zeros((len(newTimestamp),2))
+                processedStimulation = np.zeros((len(newTimestamp),2))
+                for i in range(2):
+                    processedPower[:,i] = np.interp(newTimestamp, Data["StreamingPower"][nStream]["Time"], Data["StreamingPower"][nStream]["Power"][:,i])
+                    processedStimulation[:,i] = np.interp(newTimestamp, Data["StreamingPower"][nStream]["Time"], Data["StreamingPower"][nStream]["Stimulation"][:,i])
+                
+                for t in range(len(newTimestamp)):
+                    if not newTimestamp[t] in Data["StreamingPower"][nStream]["Time"]:
+                        Data["StreamingPower"][nStream]["Missing"][t] = 1
+                        
+                Data["StreamingPower"][nStream]["Power"] = processedPower
+                Data["StreamingPower"][nStream]["Stimulation"] = processedStimulation
+                Data["StreamingPower"][nStream]["Time"] = newTimestamp
+        
+    for key in Data.keys():
+        sourceData[key] = Data[key]
+        
     return Data
 
 def extractStreamingData(JSON, sourceData=dict()):
@@ -1439,6 +1604,41 @@ def extractStreamingData(JSON, sourceData=dict()):
         
     return Data
 
+# This method only apply to Time-Domain-Only Streaming. 
+# Which includes Surveys, Indefinite Streaming
+def processTimeDomainStreamFormatting(Stream):
+    Stream["Sequences"] = np.array(text2num(Stream["GlobalSequences"].split(",")))
+    Stream["PacketSizes"] = np.array(text2num(Stream["GlobalPacketSizes"].split(",")))
+    Stream["Ticks"] = np.array(text2num(Stream["TicksInMses"].split(",")))
+    Stream["Data"] = np.array(Stream["TimeDomainData"])
+    Stream["SamplingRate"] = text2num(Stream["SampleRateInHz"])
+    Stream["FirstPacketDateTime"] = getTimestamp(Stream["FirstPacketDateTime"])
+    del(Stream["GlobalSequences"])
+    del(Stream["TicksInMses"])
+    del(Stream["TimeDomainData"])
+    del(Stream["SampleRateInHz"])
+
+    TDSequences = unwrap(Stream["Sequences"], cap=256)
+    missingSequence = list()
+    for n in range(1,len(TDSequences)):
+        jumppedSequence = TDSequences[n]-TDSequences[n-1]
+        if jumppedSequence > 1:
+            missingIndexes = np.array(range(1, jumppedSequence)) + TDSequences[n-1]
+            missingSequence.extend(missingIndexes)
+            
+    Stream["Missing"] = np.zeros(Stream["Data"].shape)
+    PacketSize = int(np.mean(Stream["PacketSizes"]))
+    if len(missingSequence) > 0:
+        for nMissing in missingSequence:
+            insertionIndex = np.where(TDSequences < nMissing)[0][-1] + 1
+            startIndex = int(np.sum(Stream["PacketSizes"][:insertionIndex]))
+            TDSequences = np.concatenate((TDSequences[:insertionIndex], [nMissing], TDSequences[insertionIndex:]))
+            Stream["PacketSizes"] = np.concatenate((Stream["PacketSizes"][:insertionIndex], [PacketSize], Stream["PacketSizes"][insertionIndex:]))
+            Stream["Data"] = np.concatenate((Stream["Data"][:startIndex],np.zeros((PacketSize)),Stream["Data"][startIndex:]))
+            Stream["Missing"] = np.concatenate((Stream["Missing"][:startIndex],np.ones((PacketSize)),Stream["Missing"][startIndex:]))
+            
+    return Stream
+
 def extractIndefiniteStreaming(JSON, sourceData=dict()):
     """ Extract Indefinite Streaming during BrainSense Survey.
 
@@ -1459,17 +1659,8 @@ def extractIndefiniteStreaming(JSON, sourceData=dict()):
         key = "IndefiniteStreaming"
         Data["IndefiniteStream"] = copy.deepcopy(JSON[key])
         for Stream in Data["IndefiniteStream"]:
-            Stream["Sequences"] = np.array(text2num(Stream["GlobalSequences"].split(",")))
-            Stream["PacketSizes"] = np.array(text2num(Stream["GlobalPacketSizes"].split(",")))
-            Stream["Ticks"] = np.array(text2num(Stream["TicksInMses"].split(",")))
-            Stream["Data"] = np.array(Stream["TimeDomainData"])
-            Stream["SamplingRate"] = text2num(Stream["SampleRateInHz"])
-            Stream["Time"] = np.array(range(len(Stream["Data"]))) / Stream["SamplingRate"]
-            del(Stream["GlobalSequences"])
-            del(Stream["TicksInMses"])
-            del(Stream["TimeDomainData"])
-            del(Stream["SampleRateInHz"])
-        
+            Stream = processTimeDomainStreamFormatting(Stream)
+
     for key in Data.keys():
         sourceData[key] = Data[key]
     return Data
@@ -1499,16 +1690,8 @@ def extractBrainSenseSurvey(JSON, sourceData=dict()):
         key = "LfpMontageTimeDomain"
         Data["MontagesTD"] = copy.deepcopy(JSON[key])
         for Stream in Data["MontagesTD"]:
-            Stream["Sequences"] = np.array(text2num(Stream["GlobalSequences"].split(",")))
-            Stream["Ticks"] = np.array(text2num(Stream["TicksInMses"].split(",")))
-            Stream["Data"] = np.array(Stream["TimeDomainData"])
-            Stream["SamplingRate"] = text2num(Stream["SampleRateInHz"])
-            Stream["Time"] = np.array(range(len(Stream["Data"]))) / Stream["SamplingRate"]
-            del(Stream["GlobalSequences"])
-            del(Stream["TicksInMses"])
-            del(Stream["TimeDomainData"])
-            del(Stream["SampleRateInHz"])
-        
+            Stream = processTimeDomainStreamFormatting(Stream)
+
     for key in Data.keys():
         sourceData[key] = Data[key]
     return Data
@@ -1534,29 +1717,13 @@ def extractSignalCalibration(JSON, sourceData=dict()):
         key = "SenseChannelTests"
         Data["BaselineTD"] = copy.deepcopy(JSON[key])
         for Stream in Data["BaselineTD"]:
-            Stream["Sequences"] = np.array(text2num(Stream["GlobalSequences"].split(",")))
-            Stream["Ticks"] = np.array(text2num(Stream["TicksInMses"].split(",")))
-            Stream["Data"] = np.array(Stream["TimeDomainData"])
-            Stream["SamplingRate"] = text2num(Stream["SampleRateInHz"])
-            Stream["Time"] = np.array(range(len(Stream["Data"]))) / Stream["SamplingRate"]
-            del(Stream["GlobalSequences"])
-            del(Stream["TicksInMses"])
-            del(Stream["TimeDomainData"])
-            del(Stream["SampleRateInHz"])
+            Stream = processTimeDomainStreamFormatting(Stream)
     
     if "CalibrationTests" in JSON.keys():
         key = "CalibrationTests"
         Data["StimulationTD"] = copy.deepcopy(JSON[key])
         for Stream in Data["StimulationTD"]:
-            Stream["Sequences"] = np.array(text2num(Stream["GlobalSequences"].split(",")))
-            Stream["Ticks"] = np.array(text2num(Stream["TicksInMses"].split(",")))
-            Stream["Data"] = np.array(Stream["TimeDomainData"])
-            Stream["SamplingRate"] = text2num(Stream["SampleRateInHz"])
-            Stream["Time"] = np.array(range(len(Stream["Data"]))) / Stream["SamplingRate"]
-            del(Stream["GlobalSequences"])
-            del(Stream["TicksInMses"])
-            del(Stream["TimeDomainData"])
-            del(Stream["SampleRateInHz"])
+            Stream = processTimeDomainStreamFormatting(Stream)
     
     for key in Data.keys():
         sourceData[key] = Data[key]
