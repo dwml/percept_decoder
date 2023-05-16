@@ -1359,9 +1359,14 @@ def extractTimeDomainStreamingData(JSON, sourceData=dict()):
                     startIndex = int(np.sum(Data["StreamingTD"][nStream]["PacketSizes"][:insertionIndex]))
                     
                     if Data["StreamingTD"][nStream]["PacketSizes"][insertionIndex-1] == 62:
-                        insertionPackets = np.array([63+(i%2) for i in range(numMissingPacket)])
+                        insertionPackets = [63+(i%2) for i in range(numMissingPacket)]
                     else:
-                        insertionPackets = np.array([62+(i%2) for i in range(numMissingPacket)])
+                        insertionPackets = [62+(i%2) for i in range(numMissingPacket)]
+                    
+                    remainderPacket = (ChangesInMs[missingIndex-1] / TimePerPacket - 1) % 1
+                    if remainderPacket > 0:
+                        insertionPackets.append(int(remainderPacket * 62))
+                    insertionPackets = np.array(insertionPackets)
                         
                     Data["StreamingTD"][nStream]["PacketSizes"] = np.concatenate((Data["StreamingTD"][nStream]["PacketSizes"][:insertionIndex], insertionPackets, Data["StreamingTD"][nStream]["PacketSizes"][insertionIndex:]))
                     Data["StreamingTD"][nStream]["Data"] = np.concatenate((Data["StreamingTD"][nStream]["Data"][:startIndex],np.zeros(np.sum(insertionPackets)),Data["StreamingTD"][nStream]["Data"][startIndex:]))
@@ -1407,7 +1412,7 @@ def extractPowerDomainStreamingData(JSON, sourceData=dict()):
                 
             Stream["InitialTickInMs"] = Stream["LfpData"][0]["TicksInMs"] % 1000.0
             Stream["Time"] -= Stream["Time"][0]
-            Stream["Time"] = Stream["Time"].flatten()
+            Stream["Time"] = np.around(Stream["Time"].flatten(),3)
             Stream["SamplingRate"] = text2num(Stream["SampleRateInHz"])
             Stream["Sequences"] = Stream["Sequences"].flatten()
 
@@ -1439,15 +1444,17 @@ def extractPowerDomainStreamingData(JSON, sourceData=dict()):
             Data["StreamingPower"][nStream]["Missing"] = np.zeros(Data["StreamingPower"][nStream]["Power"].shape)
             if len(MissingPacket) > 0:
                 newTimestamp = np.arange(Data["StreamingPower"][nStream]["Time"][0], Data["StreamingPower"][nStream]["Time"][-1]+TimePerPacket*len(MissingPacket), TimePerPacket)
+                
                 processedPower = np.zeros((len(newTimestamp),2))
                 processedStimulation = np.zeros((len(newTimestamp),2))
                 for i in range(2):
                     processedPower[:,i] = np.interp(newTimestamp, Data["StreamingPower"][nStream]["Time"], Data["StreamingPower"][nStream]["Power"][:,i])
                     processedStimulation[:,i] = np.interp(newTimestamp, Data["StreamingPower"][nStream]["Time"], Data["StreamingPower"][nStream]["Stimulation"][:,i])
                 
+                Data["StreamingPower"][nStream]["Missing"] = np.zeros(processedPower.shape)
                 for t in range(len(newTimestamp)):
-                    if not newTimestamp[t] in Data["StreamingPower"][nStream]["Time"]:
-                        Data["StreamingPower"][nStream]["Missing"][t] = 1
+                    if np.min(np.abs(newTimestamp[t] - Data["StreamingPower"][nStream]["Time"])) > TimePerPacket:
+                        Data["StreamingPower"][nStream]["Missing"][t,:] = 1
                         
                 Data["StreamingPower"][nStream]["Power"] = processedPower
                 Data["StreamingPower"][nStream]["Stimulation"] = processedStimulation
