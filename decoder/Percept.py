@@ -1326,7 +1326,7 @@ def extractTimeDomainStreamingData(JSON, sourceData=dict()):
                     Stream["Sequences"] = Stream["Sequences"][1:]
                     Stream["PacketSizes"] = Stream["PacketSizes"][1:]
                     Stream["Ticks"] = Stream["Ticks"][1:]
-                    Stream["Data"] = Stream["Data"][Stream["PacketSizes"][0]:]
+                    Stream["Data"] = Stream["Data"][int(Stream["PacketSizes"][0]):]
     
         i = 0
         while i < len(Data["StreamingTD"]):
