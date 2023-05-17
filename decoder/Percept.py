@@ -1701,6 +1701,15 @@ def extractBrainSenseSurvey(JSON, sourceData=dict()):
         Data["MontagesTD"] = copy.deepcopy(JSON[key])
         for Stream in Data["MontagesTD"]:
             Stream = processTimeDomainStreamFormatting(Stream)
+            
+        if "MontagesPSD" in Data.keys():
+            for i in range(len(Data["MontagesPSD"])):
+                for j in range(len(Data["MontagesTD"])):
+                    if Data["MontagesPSD"][i]["SensingElectrodes"].replace("SensingElectrodeConfigDef.","") in Data["MontagesTD"][j]["Channel"]:
+                        if Data["MontagesPSD"][i]["Hemisphere"].replace("HemisphereLocationDef.","").upper() in Data["MontagesTD"][j]["Channel"]:
+                            if "PSD" in Data["MontagesTD"][j].keys():
+                                print("MontageTD Duplicate")
+                            Data["MontagesTD"][j]["PSD"] = Data["MontagesPSD"][i]
 
     for key in Data.keys():
         sourceData[key] = Data[key]
