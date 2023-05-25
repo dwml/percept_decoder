@@ -368,6 +368,8 @@ def loadAtlasTransform(filename):
         scale = savestruct["scaleleft"][[1,0,2]].astype(float)
         translation = savestruct["mvmtleft"][[1,0,2]].astype(float)
         rotation = savestruct["rotationleft"][[1,0,2]].astype(float)
+        rotation[1] *= -1
+        rotation[2] *= -1
         transform["Left"] = computeTransformationMatrix(scale, translation, rotation)
 
     if "mvmtright" in savestruct.keys():
@@ -377,8 +379,6 @@ def loadAtlasTransform(filename):
         # UF Software actually invert the following parameters on display.
         translation[0] *= -1
         rotation[0] *= -1
-        rotation[1] *= -1
-        rotation[2] *= -1
         transform["Right"] = computeTransformationMatrix(scale, translation, rotation)
     
     return transform
@@ -404,7 +404,7 @@ def computeTransformationMatrix(scale, translation, rotation):
 
     Translation = np.eye(4)
     for i in range(3):
-        Translation[i,-1] = translation[i]
+        Translation[-1,i] = translation[i]
 
     tform = xRotation @ yRotation @ zRotation @ Scale @ Translation
     return tform
