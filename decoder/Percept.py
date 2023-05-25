@@ -943,93 +943,96 @@ def extractPatientInformation(JSON, sourceData=dict()):
     if "Impedance" in JSON.keys():
         key = "Impedance"
         if len(JSON[key]) > 0:
-            if "ImpedanceStatus" in JSON[key][-1].keys():
-                Data["Impedance"] = dict()
-                Data["Impedance"]["Status"] = JSON[key][-1]["ImpedanceStatus"].replace("ImpedanceStateDef.","")
-                if "TestCurrentMA" in JSON[key][-1].keys():
-                    Data["Impedance"]["Amplitude"] = JSON[key][-1]["TestCurrentMA"] + "mA"
-                else:
-                    Data["Impedance"]["Amplitude"] = JSON[key][-1]["TestVoltage"] + "V"
-                    
-                for impedanceData in JSON[key][-1]["Hemisphere"]:
-                    hemisphere = impedanceData["Hemisphere"].replace("HemisphereLocationDef.","")
-                    Data["Impedance"][hemisphere] = dict()
-                    
-                    numContacts = -1
-                    for leadInfo in Data["LeadConfiguration"]:
-                        if leadInfo["Hemisphere"].find(hemisphere) >= 0:
-                            if leadInfo["Model"] == "LeadModelDef.LEAD_B33015":
-                                Data["Impedance"][hemisphere]["LeadModel"] = "LEAD_B33015"
-                                numContacts = 8
-                            elif leadInfo["Model"] == "LeadModelDef.LEAD_B33005":
-                                Data["Impedance"][hemisphere]["LeadModel"] = "LEAD_B33005"
-                                numContacts = 8
-                            elif leadInfo["Model"] == "LeadModelDef.LEAD_3387":
-                                Data["Impedance"][hemisphere]["LeadModel"] = "LEAD_3387"
-                                numContacts = 4
-                            elif leadInfo["Model"] == "LeadModelDef.LEAD_3389":
-                                Data["Impedance"][hemisphere]["LeadModel"] = "LEAD_3389"
-                                numContacts = 4
-                            else:
-                                Data["Impedance"][hemisphere]["LeadModel"] = "Unknown"
-                                numContacts = 4
+            Data["Impedance"] = list()
+            for i in range(len(JSON[key])):
+                ImpedanceValue = dict()
+                if "ImpedanceStatus" in JSON[key][i].keys():
+                    ImpedanceValue["Status"] = JSON[key][i]["ImpedanceStatus"].replace("ImpedanceStateDef.","")
+                    if "TestCurrentMA" in JSON[key][i].keys():
+                        ImpedanceValue["Amplitude"] = JSON[key][i]["TestCurrentMA"] + "mA"
+                    else:
+                        ImpedanceValue["Amplitude"] = JSON[key][i]["TestVoltage"] + "V"
+                        
+                    for impedanceData in JSON[key][i]["Hemisphere"]:
+                        hemisphere = impedanceData["Hemisphere"].replace("HemisphereLocationDef.","")
+                        ImpedanceValue[hemisphere] = dict()
+                        
+                        numContacts = -1
+                        for leadInfo in Data["LeadConfiguration"]:
+                            if leadInfo["Hemisphere"].find(hemisphere) >= 0:
+                                if leadInfo["Model"] == "LeadModelDef.LEAD_B33015":
+                                    ImpedanceValue[hemisphere]["LeadModel"] = "LEAD_B33015"
+                                    numContacts = 8
+                                elif leadInfo["Model"] == "LeadModelDef.LEAD_B33005":
+                                    ImpedanceValue[hemisphere]["LeadModel"] = "LEAD_B33005"
+                                    numContacts = 8
+                                elif leadInfo["Model"] == "LeadModelDef.LEAD_3387":
+                                    ImpedanceValue[hemisphere]["LeadModel"] = "LEAD_3387"
+                                    numContacts = 4
+                                elif leadInfo["Model"] == "LeadModelDef.LEAD_3389":
+                                    ImpedanceValue[hemisphere]["LeadModel"] = "LEAD_3389"
+                                    numContacts = 4
+                                else:
+                                    ImpedanceValue[hemisphere]["LeadModel"] = "Unknown"
+                                    numContacts = 4
+                                    
+                        ImpedanceValue[hemisphere]["Monopolar"] = np.zeros((numContacts))
+                        ImpedanceValue[hemisphere]["Bipolar"] = np.zeros((numContacts, numContacts))
+                        
+                        if ImpedanceValue[hemisphere]["LeadModel"] == "LEAD_B33015" or ImpedanceValue[hemisphere]["LeadModel"] == "LEAD_B33005":
+                            for measurement in impedanceData["SessionImpedance"]["Monopolar"]:
+                                _, electrodeID = reformatElectrodeDef(measurement["Electrode2"])
+                                if measurement["ResultValue"] == "HIGH":
+                                    measurement["ResultValue"] = 999999
+                                elif measurement["ResultValue"] == "LOW":
+                                    measurement["ResultValue"] = -1000
+                                elif measurement["ResultValue"] == ">5K":
+                                    measurement["ResultValue"] = 9999
+                                elif measurement["ResultValue"] == ">10K":
+                                    measurement["ResultValue"] = 99999
+                                ImpedanceValue[hemisphere]["Monopolar"][electrodeID % 8] = measurement["ResultValue"]
+                        
+                            for measurement in impedanceData["SessionImpedance"]["Bipolar"]:
+                                _, electrodeID1 = reformatElectrodeDef(measurement["Electrode1"])
+                                _, electrodeID2 = reformatElectrodeDef(measurement["Electrode2"]) 
+                                if measurement["ResultValue"] == "HIGH":
+                                    measurement["ResultValue"] = 999999
+                                elif measurement["ResultValue"] == "LOW":
+                                    measurement["ResultValue"] = -1000
+                                elif measurement["ResultValue"] == ">5K":
+                                    measurement["ResultValue"] = 9999
+                                elif measurement["ResultValue"] == ">10K":
+                                    measurement["ResultValue"] = 99999
+                                ImpedanceValue[hemisphere]["Bipolar"][electrodeID1 % 8][electrodeID2 % 8] = measurement["ResultValue"]
                                 
-                    Data["Impedance"][hemisphere]["Monopolar"] = np.zeros((numContacts))
-                    Data["Impedance"][hemisphere]["Bipolar"] = np.zeros((numContacts, numContacts))
-                    
-                    if Data["Impedance"][hemisphere]["LeadModel"] == "LEAD_B33015" or Data["Impedance"][hemisphere]["LeadModel"] == "LEAD_B33005":
-                        for measurement in impedanceData["SessionImpedance"]["Monopolar"]:
-                            _, electrodeID = reformatElectrodeDef(measurement["Electrode2"])
-                            if measurement["ResultValue"] == "HIGH":
-                                measurement["ResultValue"] = 999999
-                            elif measurement["ResultValue"] == "LOW":
-                                measurement["ResultValue"] = -1000
-                            elif measurement["ResultValue"] == ">5K":
-                                measurement["ResultValue"] = 9999
-                            elif measurement["ResultValue"] == ">10K":
-                                measurement["ResultValue"] = 99999
-                            Data["Impedance"][hemisphere]["Monopolar"][electrodeID % 8] = measurement["ResultValue"]
-                    
-                        for measurement in impedanceData["SessionImpedance"]["Bipolar"]:
-                            _, electrodeID1 = reformatElectrodeDef(measurement["Electrode1"])
-                            _, electrodeID2 = reformatElectrodeDef(measurement["Electrode2"]) 
-                            if measurement["ResultValue"] == "HIGH":
-                                measurement["ResultValue"] = 999999
-                            elif measurement["ResultValue"] == "LOW":
-                                measurement["ResultValue"] = -1000
-                            elif measurement["ResultValue"] == ">5K":
-                                measurement["ResultValue"] = 9999
-                            elif measurement["ResultValue"] == ">10K":
-                                measurement["ResultValue"] = 99999
-                            Data["Impedance"][hemisphere]["Bipolar"][electrodeID1 % 8][electrodeID2 % 8] = measurement["ResultValue"]
-                            
-                    elif Data["Impedance"][hemisphere]["LeadModel"] == "LEAD_3387" or Data["Impedance"][hemisphere]["LeadModel"] == "LEAD_3389":
-                        for measurement in impedanceData["SessionImpedance"]["Monopolar"]:
-                            _, electrodeID = reformatElectrodeDef(measurement["Electrode2"])
-                            if measurement["ResultValue"] == "HIGH":
-                                measurement["ResultValue"] = 999999
-                            elif measurement["ResultValue"] == "LOW":
-                                measurement["ResultValue"] = -1000
-                            elif measurement["ResultValue"] == ">5K":
-                                measurement["ResultValue"] = 9999
-                            elif measurement["ResultValue"] == ">10K":
-                                measurement["ResultValue"] = 99999
-                            Data["Impedance"][hemisphere]["Monopolar"][electrodeID % 4] = measurement["ResultValue"]
-                            
-                        for measurement in impedanceData["SessionImpedance"]["Bipolar"]:
-                            _, electrodeID1 = reformatElectrodeDef(measurement["Electrode1"])
-                            _, electrodeID2 = reformatElectrodeDef(measurement["Electrode2"])
-                            if measurement["ResultValue"] == "HIGH":
-                                measurement["ResultValue"] = 999999
-                            elif measurement["ResultValue"] == "LOW":
-                                measurement["ResultValue"] = -1000
-                            elif measurement["ResultValue"] == ">5K":
-                                measurement["ResultValue"] = 9999
-                            elif measurement["ResultValue"] == ">10K":
-                                measurement["ResultValue"] = 99999
-                            Data["Impedance"][hemisphere]["Bipolar"][electrodeID1 % 4][electrodeID2 % 4] = measurement["ResultValue"]
-                    Data["Impedance"][hemisphere]["Monopolar"] = Data["Impedance"][hemisphere]["Monopolar"].tolist()
-                    Data["Impedance"][hemisphere]["Bipolar"] = Data["Impedance"][hemisphere]["Bipolar"].tolist()
+                        elif ImpedanceValue[hemisphere]["LeadModel"] == "LEAD_3387" or ImpedanceValue[hemisphere]["LeadModel"] == "LEAD_3389":
+                            for measurement in impedanceData["SessionImpedance"]["Monopolar"]:
+                                _, electrodeID = reformatElectrodeDef(measurement["Electrode2"])
+                                if measurement["ResultValue"] == "HIGH":
+                                    measurement["ResultValue"] = 999999
+                                elif measurement["ResultValue"] == "LOW":
+                                    measurement["ResultValue"] = -1000
+                                elif measurement["ResultValue"] == ">5K":
+                                    measurement["ResultValue"] = 9999
+                                elif measurement["ResultValue"] == ">10K":
+                                    measurement["ResultValue"] = 99999
+                                ImpedanceValue[hemisphere]["Monopolar"][electrodeID % 4] = measurement["ResultValue"]
+                                
+                            for measurement in impedanceData["SessionImpedance"]["Bipolar"]:
+                                _, electrodeID1 = reformatElectrodeDef(measurement["Electrode1"])
+                                _, electrodeID2 = reformatElectrodeDef(measurement["Electrode2"])
+                                if measurement["ResultValue"] == "HIGH":
+                                    measurement["ResultValue"] = 999999
+                                elif measurement["ResultValue"] == "LOW":
+                                    measurement["ResultValue"] = -1000
+                                elif measurement["ResultValue"] == ">5K":
+                                    measurement["ResultValue"] = 9999
+                                elif measurement["ResultValue"] == ">10K":
+                                    measurement["ResultValue"] = 99999
+                                ImpedanceValue[hemisphere]["Bipolar"][electrodeID1 % 4][electrodeID2 % 4] = measurement["ResultValue"]
+                        ImpedanceValue[hemisphere]["Monopolar"] = ImpedanceValue[hemisphere]["Monopolar"].tolist()
+                        ImpedanceValue[hemisphere]["Bipolar"] = ImpedanceValue[hemisphere]["Bipolar"].tolist()
+                    Data["Impedance"].append(ImpedanceValue)
                     
     for key in Data.keys():
         sourceData[key] = Data[key]
@@ -1326,7 +1329,7 @@ def extractTimeDomainStreamingData(JSON, sourceData=dict()):
                     Stream["Sequences"] = Stream["Sequences"][1:]
                     Stream["PacketSizes"] = Stream["PacketSizes"][1:]
                     Stream["Ticks"] = Stream["Ticks"][1:]
-                    Stream["Data"] = Stream["Data"][Stream["PacketSizes"][0]:]
+                    Stream["Data"] = Stream["Data"][int(Stream["PacketSizes"][0]):]
     
         i = 0
         while i < len(Data["StreamingTD"]):
@@ -1359,9 +1362,14 @@ def extractTimeDomainStreamingData(JSON, sourceData=dict()):
                     startIndex = int(np.sum(Data["StreamingTD"][nStream]["PacketSizes"][:insertionIndex]))
                     
                     if Data["StreamingTD"][nStream]["PacketSizes"][insertionIndex-1] == 62:
-                        insertionPackets = np.array([63+(i%2) for i in range(numMissingPacket)])
+                        insertionPackets = [63+(i%2) for i in range(numMissingPacket)]
                     else:
-                        insertionPackets = np.array([62+(i%2) for i in range(numMissingPacket)])
+                        insertionPackets = [62+(i%2) for i in range(numMissingPacket)]
+                    
+                    remainderPacket = (ChangesInMs[missingIndex-1] / TimePerPacket - 1) % 1
+                    if remainderPacket > 0:
+                        insertionPackets.append(int(remainderPacket * 62))
+                    insertionPackets = np.array(insertionPackets)
                         
                     Data["StreamingTD"][nStream]["PacketSizes"] = np.concatenate((Data["StreamingTD"][nStream]["PacketSizes"][:insertionIndex], insertionPackets, Data["StreamingTD"][nStream]["PacketSizes"][insertionIndex:]))
                     Data["StreamingTD"][nStream]["Data"] = np.concatenate((Data["StreamingTD"][nStream]["Data"][:startIndex],np.zeros(np.sum(insertionPackets)),Data["StreamingTD"][nStream]["Data"][startIndex:]))
@@ -1407,7 +1415,7 @@ def extractPowerDomainStreamingData(JSON, sourceData=dict()):
                 
             Stream["InitialTickInMs"] = Stream["LfpData"][0]["TicksInMs"] % 1000.0
             Stream["Time"] -= Stream["Time"][0]
-            Stream["Time"] = Stream["Time"].flatten()
+            Stream["Time"] = np.around(Stream["Time"].flatten(),3)
             Stream["SamplingRate"] = text2num(Stream["SampleRateInHz"])
             Stream["Sequences"] = Stream["Sequences"].flatten()
 
@@ -1439,15 +1447,17 @@ def extractPowerDomainStreamingData(JSON, sourceData=dict()):
             Data["StreamingPower"][nStream]["Missing"] = np.zeros(Data["StreamingPower"][nStream]["Power"].shape)
             if len(MissingPacket) > 0:
                 newTimestamp = np.arange(Data["StreamingPower"][nStream]["Time"][0], Data["StreamingPower"][nStream]["Time"][-1]+TimePerPacket*len(MissingPacket), TimePerPacket)
+                
                 processedPower = np.zeros((len(newTimestamp),2))
                 processedStimulation = np.zeros((len(newTimestamp),2))
                 for i in range(2):
                     processedPower[:,i] = np.interp(newTimestamp, Data["StreamingPower"][nStream]["Time"], Data["StreamingPower"][nStream]["Power"][:,i])
                     processedStimulation[:,i] = np.interp(newTimestamp, Data["StreamingPower"][nStream]["Time"], Data["StreamingPower"][nStream]["Stimulation"][:,i])
                 
+                Data["StreamingPower"][nStream]["Missing"] = np.zeros(processedPower.shape)
                 for t in range(len(newTimestamp)):
-                    if not newTimestamp[t] in Data["StreamingPower"][nStream]["Time"]:
-                        Data["StreamingPower"][nStream]["Missing"][t] = 1
+                    if np.min(np.abs(newTimestamp[t] - Data["StreamingPower"][nStream]["Time"])) > TimePerPacket:
+                        Data["StreamingPower"][nStream]["Missing"][t,:] = 1
                         
                 Data["StreamingPower"][nStream]["Power"] = processedPower
                 Data["StreamingPower"][nStream]["Stimulation"] = processedStimulation
@@ -1691,6 +1701,15 @@ def extractBrainSenseSurvey(JSON, sourceData=dict()):
         Data["MontagesTD"] = copy.deepcopy(JSON[key])
         for Stream in Data["MontagesTD"]:
             Stream = processTimeDomainStreamFormatting(Stream)
+            
+        if "MontagesPSD" in Data.keys():
+            for i in range(len(Data["MontagesPSD"])):
+                for j in range(len(Data["MontagesTD"])):
+                    if Data["MontagesPSD"][i]["SensingElectrodes"].replace("SensingElectrodeConfigDef.","") in Data["MontagesTD"][j]["Channel"]:
+                        if Data["MontagesPSD"][i]["Hemisphere"].replace("HemisphereLocationDef.","").upper() in Data["MontagesTD"][j]["Channel"]:
+                            if "PSD" in Data["MontagesTD"][j].keys():
+                                print("MontageTD Duplicate")
+                            Data["MontagesTD"][j]["PSD"] = Data["MontagesPSD"][i]
 
     for key in Data.keys():
         sourceData[key] = Data[key]
