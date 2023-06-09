@@ -95,17 +95,17 @@ def estimateSessionDateTime(JSON):
 
     sessionDatePools = list()
     if "SessionDate" in JSON.keys() and JSON["SessionEndDate"] == "":
-        sessionDatePools.append(datetime.fromisoformat(JSON["SessionDate"]+"+00:00").timestamp())
+        sessionDatePools.append(datetime.fromisoformat(JSON["SessionDate"].replace("Z","+00:00")).timestamp())
     if not JSON["SessionEndDate"] == "":
-        sessionDatePools.append(datetime.fromisoformat(JSON["SessionEndDate"]+"+00:00").timestamp())
+        sessionDatePools.append(datetime.fromisoformat(JSON["SessionEndDate"].replace("Z","+00:00")).timestamp())
     
     if len(sessionDatePools) == 2:
         if np.abs(sessionDatePools[1]-sessionDatePools[0]) > 24*60*60:
             sessionDatePools = list()
-            sessionDatePools.append(datetime.fromisoformat(JSON["SessionEndDate"]+"+00:00").timestamp())
+            sessionDatePools.append(datetime.fromisoformat(JSON["SessionEndDate"].replace("Z","+00:00")).timestamp())
     
     if "EventSummary" in JSON.keys():
-        sessionDatePools.append(datetime.fromisoformat(JSON["EventSummary"]["SessionEndDate"]+"+00:00").timestamp())
+        sessionDatePools.append(datetime.fromisoformat(JSON["EventSummary"]["SessionEndDate"].replace("Z","+00:00")).timestamp())
     if "CalibrationTests" in JSON.keys():
         for i in range(len(JSON["CalibrationTests"])):
             sessionDatePools.append(datetime.fromisoformat(JSON["CalibrationTests"][i]["FirstPacketDateTime"][:-4]+"+00:00").timestamp())
@@ -126,7 +126,7 @@ def estimateSessionDateTime(JSON):
         return sessionDatePools[0]
     
     if len(sessionDatePools) == 0:
-        return datetime.fromisoformat(JSON["SessionDate"]+"+00:00").timestamp()
+        return datetime.fromisoformat(JSON["SessionDate"].replace("Z","+00:00")).timestamp()
     
     if np.std(sessionDatePools) == 0:
         return np.mean(np.array(sessionDatePools))
@@ -176,14 +176,14 @@ def concatenateJSONs(JSONs):
                         for date in dates:
                             allLFPTrends.extend(concatenateLists(JSONs, [field, subfield, hemisphere, date]))
                         allLFPTrends = removeDuplicates(allLFPTrends)
-                        Timestamp = [datetime.fromisoformat(allLFPTrends[i]["DateTime"][:-1]+"+00:00").timestamp() for i in range(len(allLFPTrends))]
+                        Timestamp = [datetime.fromisoformat(allLFPTrends[i]["DateTime"].replace("Z","+00:00")).timestamp() for i in range(len(allLFPTrends))]
                         allLFPTrends = listSort(allLFPTrends, np.argsort(Timestamp))
                         CompiledJSON[field][subfield][hemisphere][allLFPTrends[0]["DateTime"]] = allLFPTrends
                 
                 elif subfield == "EventLogs":
                     CompiledJSON[field][subfield] = concatenateLists(JSONs, [field, subfield])
                     CompiledJSON[field][subfield] = removeDuplicates(CompiledJSON[field][subfield])
-                    Timestamp = [datetime.fromisoformat(CompiledJSON[field][subfield][i]["DateTime"][:-1]+"+00:00").timestamp() for i in range(len(CompiledJSON[field][subfield]))]
+                    Timestamp = [datetime.fromisoformat(CompiledJSON[field][subfield][i]["DateTime"].replace("Z","+00:00")).timestamp() for i in range(len(CompiledJSON[field][subfield]))]
                     CompiledJSON[field][subfield] = listSort(CompiledJSON[field][subfield], np.argsort(Timestamp))
                     
                 # Skipping PSD Logs for now. Test dataset do not contain them.
@@ -217,7 +217,7 @@ def concatenateJSONs(JSONs):
         elif field == "GroupHistory":
             CompiledJSON[field] = concatenateLists(JSONs, [field])
             CompiledJSON[field] = removeDuplicates(CompiledJSON[field])
-            Timestamp = [datetime.fromisoformat(CompiledJSON[field][i]["SessionDate"][:-1]+"+00:00").timestamp() for i in range(len(CompiledJSON[field]))]
+            Timestamp = [datetime.fromisoformat(CompiledJSON[field][i]["SessionDate"].replace("Z","+00:00")).timestamp() for i in range(len(CompiledJSON[field]))]
             CompiledJSON[field] = listSort(CompiledJSON[field], np.flip(np.argsort(Timestamp)))
         
         # Groups is as confusing as GroupHistry. This is also modifiable in the middle of the recording.
@@ -464,7 +464,7 @@ def getTimestamp(DateTimeString):
       Unix Timestamp (in seconds)
     """
 
-    return datetime.fromisoformat(DateTimeString[:-1]+"+00:00").timestamp()
+    return datetime.fromisoformat(DateTimeString.replace("Z","+00:00")).timestamp()
 
 def deIdentification(JSON, patientIdentifier="", saveName=None):
     for key in JSON.keys():
@@ -698,7 +698,7 @@ def processBreakingTimeDomain(Data):
     """
 
     if "StreamingTD" in Data.keys() and "StreamingPower" in Data.keys():
-        StreamTimestamp = np.array([datetime.fromisoformat(Data["StreamingTD"][i]["FirstPacketDateTime"][:-1]+"+00:00").timestamp() for i in range(len(Data["StreamingTD"]))])
+        StreamTimestamp = np.array([datetime.fromisoformat(Data["StreamingTD"][i]["FirstPacketDateTime"].replace("Z","+00:00")).timestamp() for i in range(len(Data["StreamingTD"]))])
         UniqueStreamTimestamp = np.unique(StreamTimestamp)
         StreamLabel = np.zeros(StreamTimestamp.shape)
         for i in range(len(UniqueStreamTimestamp)):
@@ -800,8 +800,8 @@ def mergeBrainSenseStreams(Data, StreamToConcatenate):
     FinalStream["StreamingPower"] = copy.deepcopy(Data["StreamingPower"][StreamToConcatenate[0]])
     
     for nStream in StreamToConcatenate[1:]:
-        LastStreamDateTime = datetime.fromisoformat(FinalStream["StreamingTD"]["FirstPacketDateTime"][:-1]+"+00:00")
-        NewStreamDateTime = datetime.fromisoformat(Data["StreamingTD"][nStream]["FirstPacketDateTime"][:-1]+"+00:00")
+        LastStreamDateTime = datetime.fromisoformat(FinalStream["StreamingTD"]["FirstPacketDateTime"].replace("Z","+00:00"))
+        NewStreamDateTime = datetime.fromisoformat(Data["StreamingTD"][nStream]["FirstPacketDateTime"].replace("Z","+00:00"))
         TimeElapsed = NewStreamDateTime - LastStreamDateTime
         nSampleSkipped = int(TimeElapsed.seconds * Data["StreamingTD"][nStream]["SamplingRate"] - len(FinalStream["StreamingTD"]["Data"]))
         FinalStream["StreamingTD"]["Data"] = np.concatenate((FinalStream["StreamingTD"]["Data"], np.zeros((nSampleSkipped)), Data["StreamingTD"][nStream]["Data"]))
@@ -825,8 +825,8 @@ def concatenateStreams(Data, Type, StreamToConcatenate):
             if nStream is StreamToConcatenate[0]:
                 continue
             
-            LastStreamDateTime = datetime.fromisoformat(FinalStream["FirstPacketDateTime"][:-1]+"+00:00")
-            NewStreamDateTime = datetime.fromisoformat(Data["StreamingTD"][nStream]["FirstPacketDateTime"][:-1]+"+00:00")
+            LastStreamDateTime = datetime.fromisoformat(FinalStream["FirstPacketDateTime"].replace("Z","+00:00"))
+            NewStreamDateTime = datetime.fromisoformat(Data["StreamingTD"][nStream]["FirstPacketDateTime"].replace("Z","+00:00"))
             TimeElapsed = NewStreamDateTime - LastStreamDateTime
             nSampleSkipped = int(TimeElapsed.seconds * Data["StreamingTD"][nStream]["SamplingRate"] - len(FinalStream["Data"]))
             FinalStream["Data"] = np.concatenate((FinalStream["Data"], np.zeros((nSampleSkipped)), Data["StreamingTD"][nStream]["Data"]))
@@ -842,8 +842,8 @@ def concatenateStreams(Data, Type, StreamToConcatenate):
             if nStream is StreamToConcatenate[0]:
                 continue
             
-            LastStreamDateTime = datetime.fromisoformat(FinalStream["FirstPacketDateTime"][:-1]+"+00:00")
-            NewStreamDateTime = datetime.fromisoformat(Data["StreamingPower"][nStream]["FirstPacketDateTime"][:-1]+"+00:00")
+            LastStreamDateTime = datetime.fromisoformat(FinalStream["FirstPacketDateTime"].replace("Z","+00:00"))
+            NewStreamDateTime = datetime.fromisoformat(Data["StreamingPower"][nStream]["FirstPacketDateTime"].replace("Z","+00:00"))
             TimeElapsed = NewStreamDateTime - LastStreamDateTime
             nSampleSkipped = int(TimeElapsed.seconds * Data["StreamingPower"][nStream]["SamplingRate"] - len(FinalStream["Power"]))
             FinalStream["Power"] = np.concatenate((FinalStream["Power"], np.zeros((nSampleSkipped,2)), Data["StreamingPower"][nStream]["Power"]))
@@ -860,8 +860,8 @@ def concatenateStreams(Data, Type, StreamToConcatenate):
             if nStream is StreamToConcatenate[0]:
                 continue
             
-            LastStreamDateTime = datetime.fromisoformat(FinalStream["FirstPacketDateTime"][:-1]+"+00:00")
-            NewStreamDateTime = datetime.fromisoformat(Data[Type][nStream]["FirstPacketDateTime"][:-1]+"+00:00")
+            LastStreamDateTime = datetime.fromisoformat(FinalStream["FirstPacketDateTime"].replace("Z","+00:00"))
+            NewStreamDateTime = datetime.fromisoformat(Data[Type][nStream]["FirstPacketDateTime"].replace("Z","+00:00"))
             TimeElapsed = NewStreamDateTime - LastStreamDateTime
             nSampleSkipped = int(TimeElapsed.seconds * Data[Type][nStream]["SamplingRate"] - len(FinalStream["Data"]))
             FinalStream["Data"] = np.concatenate((FinalStream["Data"], np.zeros((nSampleSkipped)), Data[Type][nStream]["Data"]))
@@ -1243,7 +1243,7 @@ def extractTherapySettings(JSON, sourceData=dict()):
         Data["TherapyHistory"] = list()
         for historyID in range(len(JSON[key])):
             therapySettings = list()
-            CurrentDateSetting = datetime.fromisoformat(JSON["SessionDate"][:-1]+"+00:00").date() == datetime.fromisoformat(JSON["GroupHistory"][historyID]["SessionDate"][:-1]+"+00:00").date()
+            CurrentDateSetting = datetime.fromisoformat(JSON["SessionDate"].replace("Z","+00:00")).date() == datetime.fromisoformat(JSON["GroupHistory"][historyID]["SessionDate"].replace("Z","+00:00")).date()
             for groupID in range(len(JSON[key][historyID]["Groups"])):
                 therapySettings.append(processTherapySettings(JSON[key][historyID]["Groups"][groupID]))
             Data["TherapyHistory"].append({"DateTime": JSON[key][historyID]["SessionDate"], "Therapy": therapySettings})
@@ -1254,7 +1254,7 @@ def extractTherapySettings(JSON, sourceData=dict()):
             Data["TherapyChangeHistory"] = list()
             for event in JSON[key]["EventLogs"]:
                 if "ParameterTrendId" in event.keys() and "NewGroupId" in event.keys():
-                    switchTime = datetime.fromisoformat(event["DateTime"][:-1]+"+00:00").astimezone(dateutil.tz.tzlocal())
+                    switchTime = datetime.fromisoformat(event["DateTime"].replace("Z","+00:00")).astimezone(dateutil.tz.tzlocal())
                     
                     if not "OldGroupId" in event.keys():
                         event["OldGroupId"] = "GroupIdDef.GROUP_UNKNOWN"
@@ -1287,7 +1287,7 @@ def extractTherapySettings(JSON, sourceData=dict()):
                     Data["TherapyChangeHistory"].append({"DateTime": switchTime, "OldGroup": OldGroupId, "NewGroup": NewGroupId, "OldGroupId": event["OldGroupId"], "NewGroupId": event["NewGroupId"]})
                         
                 elif "ParameterTrendId" in event.keys() and "TherapyStatus" in event.keys():
-                    switchTime = datetime.fromisoformat(event["DateTime"][:-1]+"+00:00").astimezone(dateutil.tz.tzlocal())
+                    switchTime = datetime.fromisoformat(event["DateTime"].replace("Z","+00:00")).astimezone(dateutil.tz.tzlocal())
                     Data["TherapyChangeHistory"].append({"DateTime": switchTime, "TherapyStatus": event["TherapyStatus"] == "TherapyChangeStatusDef.ON"})
                     
     for key in Data.keys():
@@ -1402,6 +1402,7 @@ def extractPowerDomainStreamingData(JSON, sourceData=dict()):
             Stream["Power"] = np.ndarray((len(Stream["LfpData"]), 2))
             Stream["Stimulation"] = np.ndarray((len(Stream["LfpData"]), 2))
             Stream["Time"] = np.ndarray((len(Stream["LfpData"]), 1))
+            Stream["Ticks"] = np.ndarray((len(Stream["LfpData"]), 1))
             Stream["Sequences"] = np.ndarray((len(Stream["LfpData"]), 1))
             Stream["TimeSinceStimulationChange"] = np.zeros((len(Stream["LfpData"]), 2))
             Stream["FirstPacketDateTime"] = getTimestamp(Stream["FirstPacketDateTime"])
@@ -1412,12 +1413,14 @@ def extractPowerDomainStreamingData(JSON, sourceData=dict()):
                 Stream["Stimulation"][PackageID,1] = Stream["LfpData"][PackageID]["Right"]["mA"]
                 Stream["Sequences"][PackageID] = Stream["LfpData"][PackageID]["Seq"]
                 Stream["Time"][PackageID] = Stream["LfpData"][PackageID]["TicksInMs"] / 1000.0
+                Stream["Ticks"][PackageID] = Stream["LfpData"][PackageID]["TicksInMs"]
                 
             Stream["InitialTickInMs"] = Stream["LfpData"][0]["TicksInMs"] % 1000.0
             Stream["Time"] -= Stream["Time"][0]
             Stream["Time"] = np.around(Stream["Time"].flatten(),3)
             Stream["SamplingRate"] = text2num(Stream["SampleRateInHz"])
             Stream["Sequences"] = Stream["Sequences"].flatten()
+            Stream["Ticks"] = Stream["Ticks"].flatten()
 
             """ Does not include this code for future
             for PackageID in range(len(Stream["LfpData"])):
@@ -1558,9 +1561,9 @@ def extractStreamingData(JSON, sourceData=dict()):
         if len(Data["StreamingPower"]) < len(Data["StreamingTD"]) / 2:
             # This condition occur if there is no corresponding Power Channel data for either hemisphere of TimeDomain Channel
             StreamToInclude = np.zeros(len(Data["StreamingTD"]),dtype=bool)
-            Timestamps = np.array([datetime.fromisoformat(Data["StreamingTD"][i]["FirstPacketDateTime"][:-1]+"+00:00").timestamp() for i in range(len(Data["StreamingTD"]))])
+            Timestamps = np.array([datetime.fromisoformat(Data["StreamingTD"][i]["FirstPacketDateTime"].replace("Z","+00:00")).timestamp() for i in range(len(Data["StreamingTD"]))])
             for i in range(len(Data["StreamingPower"])):
-                TargetTimestamp = datetime.fromisoformat(Data["StreamingPower"][i]["FirstPacketDateTime"][:-1]+"+00:00").timestamp()
+                TargetTimestamp = datetime.fromisoformat(Data["StreamingPower"][i]["FirstPacketDateTime"].replace("Z","+00:00")).timestamp()
                 StreamToInclude[np.argmin(abs(TargetTimestamp - Timestamps))] = True
             
             for i in range(len(StreamToInclude)):
@@ -1585,9 +1588,9 @@ def extractStreamingData(JSON, sourceData=dict()):
         # This is a process to delete extremely short time-domain data without corresponding power domain data.
         if len(Data["StreamingPower"]) < len(Data["StreamingTD"]):
             StreamToInclude = np.zeros(len(Data["StreamingTD"]),dtype=bool)
-            Timestamps = np.array([datetime.fromisoformat(Data["StreamingTD"][i]["FirstPacketDateTime"][:-1]+"+00:00").timestamp() for i in range(len(Data["StreamingTD"]))])
+            Timestamps = np.array([datetime.fromisoformat(Data["StreamingTD"][i]["FirstPacketDateTime"].replace("Z","+00:00")).timestamp() for i in range(len(Data["StreamingTD"]))])
             for i in range(len(Data["StreamingPower"])):
-                TargetTimestamp = datetime.fromisoformat(Data["StreamingPower"][i]["FirstPacketDateTime"][:-1]+"+00:00").timestamp()
+                TargetTimestamp = datetime.fromisoformat(Data["StreamingPower"][i]["FirstPacketDateTime"].replace("Z","+00:00")).timestamp()
                 StreamToInclude[np.argmin(abs(TargetTimestamp - Timestamps))] = True
             
             if np.sum(StreamToInclude) == len(Data["StreamingPower"]):
@@ -1793,7 +1796,7 @@ def extractChronicLFP(JSON, sourceData=dict()):
                     for packet in range(len(Data["LFPTrends"][hemisphere])):
                         RealtimeLFP[hemisphere]["LFP"][packet] = Data["LFPTrends"][hemisphere][packet]["LFP"]
                         RealtimeLFP[hemisphere]["Amplitude"][packet] = Data["LFPTrends"][hemisphere][packet]["AmplitudeInMilliAmps"]
-                        RealtimeLFP[hemisphere]["DateTime"].append(datetime.fromisoformat(Data["LFPTrends"][hemisphere][packet]["DateTime"][:-1]+"+00:00").astimezone(dateutil.tz.tzlocal()))
+                        RealtimeLFP[hemisphere]["DateTime"].append(datetime.fromisoformat(Data["LFPTrends"][hemisphere][packet]["DateTime"].replace("Z","+00:00")).astimezone(dateutil.tz.tzlocal()))
                     sortedIndex = np.argsort(RealtimeLFP[hemisphere]["DateTime"],axis=0).flatten()
                     RealtimeLFP[hemisphere]["LFP"] = RealtimeLFP[hemisphere]["LFP"][sortedIndex].flatten()
                     RealtimeLFP[hemisphere]["Amplitude"] = RealtimeLFP[hemisphere]["Amplitude"][sortedIndex].flatten()
@@ -1804,7 +1807,7 @@ def extractChronicLFP(JSON, sourceData=dict()):
         if subkey == "LfpFrequencySnapshotEvents":
             Data["PatientEventLogs"] = copy.deepcopy(JSON[key][subkey])
             for event in Data["PatientEventLogs"]:
-                event["DateTime"] = datetime.fromisoformat(event["DateTime"][:-1]+"+00:00").astimezone(dateutil.tz.tzlocal())
+                event["DateTime"] = datetime.fromisoformat(event["DateTime"].replace("Z","+00:00")).astimezone(dateutil.tz.tzlocal())
 
             # Extract Events from Event Logs
             Data["PSDEvents"] = dict()
@@ -1819,7 +1822,7 @@ def extractChronicLFP(JSON, sourceData=dict()):
                     Data["LFPEvents"][event["EventName"]] = list()
                     Data["PSDEvents"][event["EventName"]] = copy.deepcopy(PSDArrays)
                     
-                Data["LFPEvents"][event["EventName"]].append(datetime.fromisoformat(event["DateTime"][:-1]+"+00:00").astimezone(dateutil.tz.tzlocal()))
+                Data["LFPEvents"][event["EventName"]].append(datetime.fromisoformat(event["DateTime"].replace("Z","+00:00")).astimezone(dateutil.tz.tzlocal()))
                 
                 if "LfpFrequencySnapshotEvents" in event.keys():
                     for hemisphere in ["HemisphereLocationDef.Left","HemisphereLocationDef.Right"]:
@@ -1827,16 +1830,16 @@ def extractChronicLFP(JSON, sourceData=dict()):
                             channel = reformatChannelName(event["LfpFrequencySnapshotEvents"][hemisphere]["SenseID"])
                             if channel == [0,2] and hemisphere == "HemisphereLocationDef.Left":
                                 Data["PSDEvents"][event["EventName"]]["ZERO_TWO_LEFT"]["Power"].append(event["LfpFrequencySnapshotEvents"][hemisphere]["FFTBinData"])
-                                Data["PSDEvents"][event["EventName"]]["ZERO_TWO_LEFT"]["Time"].append(datetime.fromisoformat(event["DateTime"][:-1]+"+00:00").astimezone(dateutil.tz.tzlocal()))
+                                Data["PSDEvents"][event["EventName"]]["ZERO_TWO_LEFT"]["Time"].append(datetime.fromisoformat(event["DateTime"].replace("Z","+00:00")).astimezone(dateutil.tz.tzlocal()))
                             elif channel == [1,3] and hemisphere == "HemisphereLocationDef.Left":
                                 Data["PSDEvents"][event["EventName"]]["ONE_THREE_LEFT"]["Power"].append(event["LfpFrequencySnapshotEvents"][hemisphere]["FFTBinData"])
-                                Data["PSDEvents"][event["EventName"]]["ONE_THREE_LEFT"]["Time"].append(datetime.fromisoformat(event["DateTime"][:-1]+"+00:00").astimezone(dateutil.tz.tzlocal()))
+                                Data["PSDEvents"][event["EventName"]]["ONE_THREE_LEFT"]["Time"].append(datetime.fromisoformat(event["DateTime"].replace("Z","+00:00")).astimezone(dateutil.tz.tzlocal()))
                             elif channel == [0,2] and hemisphere == "HemisphereLocationDef.Right":
                                 Data["PSDEvents"][event["EventName"]]["ZERO_TWO_RIGHT"]["Power"].append(event["LfpFrequencySnapshotEvents"][hemisphere]["FFTBinData"])
-                                Data["PSDEvents"][event["EventName"]]["ZERO_TWO_RIGHT"]["Time"].append(datetime.fromisoformat(event["DateTime"][:-1]+"+00:00").astimezone(dateutil.tz.tzlocal()))
+                                Data["PSDEvents"][event["EventName"]]["ZERO_TWO_RIGHT"]["Time"].append(datetime.fromisoformat(event["DateTime"].replace("Z","+00:00")).astimezone(dateutil.tz.tzlocal()))
                             elif channel == [1,3] and hemisphere == "HemisphereLocationDef.Right":
                                 Data["PSDEvents"][event["EventName"]]["ONE_THREE_RIGHT"]["Power"].append(event["LfpFrequencySnapshotEvents"][hemisphere]["FFTBinData"])
-                                Data["PSDEvents"][event["EventName"]]["ONE_THREE_RIGHT"]["Time"].append(datetime.fromisoformat(event["DateTime"][:-1]+"+00:00").astimezone(dateutil.tz.tzlocal()))
+                                Data["PSDEvents"][event["EventName"]]["ONE_THREE_RIGHT"]["Time"].append(datetime.fromisoformat(event["DateTime"].replace("Z","+00:00")).astimezone(dateutil.tz.tzlocal()))
 
     for key in Data.keys():
         sourceData[key] = Data[key]
@@ -1856,7 +1859,7 @@ def processTherapyHistory(JSON, Data, cacheFilename=None):
                 TherapyData = pickle.load(filehandler)
 
     TherapyData["TherapyHistory"] = concatenateLists([Data, TherapyData], ["TherapyHistory"])
-    Timestamp = [datetime.fromisoformat(TherapyData["TherapyHistory"][i]["DateTime"][:-1]+"+00:00").timestamp() for i in range(len(TherapyData["TherapyHistory"]))]
+    Timestamp = [datetime.fromisoformat(TherapyData["TherapyHistory"][i]["DateTime"].replace("Z","+00:00")).timestamp() for i in range(len(TherapyData["TherapyHistory"]))]
     UniqueTimestamp = np.unique(np.array(Timestamp))
     for i in range(len(UniqueTimestamp)):
         for j in range(len(Timestamp)):
@@ -1864,7 +1867,7 @@ def processTherapyHistory(JSON, Data, cacheFilename=None):
                 TherapyHistory.append(TherapyData["TherapyHistory"][j])
                 break
     TherapyData["TherapyHistory"] = TherapyHistory
-    Timestamp = [datetime.fromisoformat(TherapyData["TherapyHistory"][i]["DateTime"][:-1]+"+00:00").timestamp() for i in range(len(TherapyData["TherapyHistory"]))]
+    Timestamp = [datetime.fromisoformat(TherapyData["TherapyHistory"][i]["DateTime"].replace("Z","+00:00")).timestamp() for i in range(len(TherapyData["TherapyHistory"]))]
     TherapyData["TherapyHistory"] = listSort(TherapyData["TherapyHistory"], np.flip(np.argsort(Timestamp)))
     
     TherapyData["TherapyChangeHistory"] = concatenateLists([Data, TherapyData], ["TherapyChangeHistory"])
@@ -1873,15 +1876,15 @@ def processTherapyHistory(JSON, Data, cacheFilename=None):
     TherapyData["TherapyChangeHistory"] = listSort(TherapyData["TherapyChangeHistory"], np.argsort(Timestamp))
 
     if not JSON["SessionEndDate"] == "":
-        TherapyEndDate = datetime.fromisoformat(JSON["SessionEndDate"]+"+00:00")
+        TherapyEndDate = datetime.fromisoformat(JSON["SessionEndDate"].replace("Z","+00:00"))
     elif "EventSummary" in JSON.keys():
-        TherapyEndDate = datetime.fromisoformat(JSON["EventSummary"]["SessionEndDate"]+"+00:00")
+        TherapyEndDate = datetime.fromisoformat(JSON["EventSummary"]["SessionEndDate"].replace("Z","+00:00"))
     else:
-        TherapyEndDate = datetime.fromisoformat(JSON["SessionDate"]+"+00:00")
+        TherapyEndDate = datetime.fromisoformat(JSON["SessionDate"].replace("Z","+00:00"))
 
     if TherapyData["TherapyHistoryEndDate"] < TherapyEndDate:
         TherapyData["TherapyHistoryEndDate"] = TherapyEndDate
-    TherapyData["TherapyHistoryStartDate"] = datetime.fromisoformat(JSON["DeviceInformation"]["Final"]["ImplantDate"][:-1]+"+00:00")
+    TherapyData["TherapyHistoryStartDate"] = datetime.fromisoformat(JSON["DeviceInformation"]["Final"]["ImplantDate"].replace("Z","+00:00"))
 
     if not cacheFilename == None:
         with open(cacheFilename, "wb+") as fileHandler:
@@ -1903,14 +1906,14 @@ def processBaselinePSDs(JSON, Data, cacheFilename=None):
         Data["SurveyPSD"] = Data["BaselineTD"]
         RestingPSD["SurveyPSD"] = concatenateLists([Data, RestingPSD], ["SurveyPSD"])
         RestingPSD["SurveyPSD"] = removeDuplicates(RestingPSD["SurveyPSD"])
-        Timestamp = [datetime.fromisoformat(RestingPSD["SurveyPSD"][i]["FirstPacketDateTime"][:-1]+"+00:00").timestamp() for i in range(len(RestingPSD["SurveyPSD"]))]
+        Timestamp = [datetime.fromisoformat(RestingPSD["SurveyPSD"][i]["FirstPacketDateTime"].replace("Z","+00:00")).timestamp() for i in range(len(RestingPSD["SurveyPSD"]))]
         RestingPSD["SurveyPSD"] = listSort(RestingPSD["SurveyPSD"], np.flip(np.argsort(Timestamp)))
 
     if "MontagesTD" in Data.keys():
         Data["SurveyPSD"] = Data["MontagesTD"]
         RestingPSD["SurveyPSD"] = concatenateLists([Data, RestingPSD], ["SurveyPSD"])
         RestingPSD["SurveyPSD"] = removeDuplicates(RestingPSD["SurveyPSD"])
-        Timestamp = [datetime.fromisoformat(RestingPSD["SurveyPSD"][i]["FirstPacketDateTime"][:-1]+"+00:00").timestamp() for i in range(len(RestingPSD["SurveyPSD"]))]
+        Timestamp = [datetime.fromisoformat(RestingPSD["SurveyPSD"][i]["FirstPacketDateTime"].replace("Z","+00:00")).timestamp() for i in range(len(RestingPSD["SurveyPSD"]))]
         RestingPSD["SurveyPSD"] = listSort(RestingPSD["SurveyPSD"], np.flip(np.argsort(Timestamp)))
 
     if not cacheFilename == None:
@@ -1949,7 +1952,7 @@ def processChronicLFPs(JSON, Data, cacheFilename=None):
                 LFPRecord["DateTime"] = LFPRecord["Time"][hemisphere][0]
         if len(LFPRecord["LFP"]) > 0:
             GroupChangeTimestamp = Data["TherapyChangeHistory"][0]["DateTime"].timestamp()
-            TherapyHistoryTimePoints = [datetime.fromisoformat(Data["TherapyHistory"][i]["DateTime"][:-1]+"+00:00").timestamp() for i in range(len(Data["TherapyHistory"]))]
+            TherapyHistoryTimePoints = [datetime.fromisoformat(Data["TherapyHistory"][i]["DateTime"].replace("Z","+00:00")).timestamp() for i in range(len(Data["TherapyHistory"]))]
             GroupIndex = np.where(GroupChangeTimestamp - np.array(TherapyHistoryTimePoints) > 0)[0][0]
             LFPRecord["Therapy"] = Data["TherapyHistory"][GroupIndex]["Therapy"][Data["TherapyChangeHistory"][0]["OldGroup"]]
             ChronicLFPs["PowerRecords"].append(LFPRecord)
@@ -1973,7 +1976,7 @@ def processChronicLFPs(JSON, Data, cacheFilename=None):
                     LFPRecord["DateTime"] = LFPRecord["Time"][hemisphere][0]
             if len(LFPRecord["LFP"]) > 0:
                 GroupChangeTimestamp = Data["TherapyChangeHistory"][historyIndex+1]["DateTime"].timestamp()
-                TherapyHistoryTimePoints = [datetime.fromisoformat(Data["TherapyHistory"][i]["DateTime"][:-1]+"+00:00").timestamp() for i in range(len(Data["TherapyHistory"]))]
+                TherapyHistoryTimePoints = [datetime.fromisoformat(Data["TherapyHistory"][i]["DateTime"].replace("Z","+00:00")).timestamp() for i in range(len(Data["TherapyHistory"]))]
                 if np.any(GroupChangeTimestamp - np.array(TherapyHistoryTimePoints) < 0):
                     GroupIndex = np.where(GroupChangeTimestamp - np.array(TherapyHistoryTimePoints) < 0)[0][-1]
                     LFPRecord["Therapy"] = Data["TherapyHistory"][GroupIndex]["Therapy"][Data["TherapyChangeHistory"][historyIndex+1]["OldGroup"]]
@@ -1997,7 +2000,7 @@ def processChronicLFPs(JSON, Data, cacheFilename=None):
                 LFPRecord["DateTime"] = LFPRecord["Time"][hemisphere][0]
         if len(LFPRecord["LFP"]) > 0:
             GroupChangeTimestamp = Data["TherapyChangeHistory"][-1]["DateTime"].timestamp()
-            TherapyHistoryTimePoints = [datetime.fromisoformat(Data["TherapyHistory"][i]["DateTime"][:-1]+"+00:00").timestamp() for i in range(len(Data["TherapyHistory"]))]
+            TherapyHistoryTimePoints = [datetime.fromisoformat(Data["TherapyHistory"][i]["DateTime"].replace("Z","+00:00")).timestamp() for i in range(len(Data["TherapyHistory"]))]
             GroupIndex = np.where(GroupChangeTimestamp - np.array(TherapyHistoryTimePoints) < 0)[0][-1]
             LFPRecord["Therapy"] = Data["TherapyHistory"][GroupIndex]["Therapy"][Data["TherapyChangeHistory"][-1]["NewGroup"]]
             ChronicLFPs["PowerRecords"].append(LFPRecord)
@@ -2060,7 +2063,7 @@ def processChronicLFPs(JSON, Data, cacheFilename=None):
                                                                           "Hemisphere": hemisphere}
                         ChronicLFPs["Events"][-1]["Power"] = event["LfpFrequencySnapshotEvents"][hemisphere]["FFTBinData"]
                         ChronicLFPs["Events"][-1]["EventName"] = event["EventName"]
-                        ChronicLFPs["Events"][-1]["Time"] = datetime.fromisoformat(event["DateTime"][:-1]+"+00:00").astimezone(dateutil.tz.tzlocal())
+                        ChronicLFPs["Events"][-1]["Time"] = datetime.fromisoformat(event["DateTime"].replace("Z","+00:00")).astimezone(dateutil.tz.tzlocal())
     
             ChronicLFPs["Events"] = removeDuplicates(ChronicLFPs["Events"])
             Timestamp = [ChronicLFPs["Events"][i]["Time"].timestamp() for i in range(len(ChronicLFPs["Events"]))]
@@ -2086,12 +2089,12 @@ def processBrainSenseStream(JSON, Data, cacheFilename=None):
     if "StreamingTD" in Data.keys() and "StreamingPower" in Data.keys():
         RealtimeStream["StreamingTD"] = concatenateLists([Data, RealtimeStream], ["StreamingTD"])
         RealtimeStream["StreamingTD"] = removeDuplicates(RealtimeStream["StreamingTD"])
-        Timestamp = [datetime.fromisoformat(RealtimeStream["StreamingTD"][i]["FirstPacketDateTime"][:-1]+"+00:00").timestamp() for i in range(len(RealtimeStream["StreamingTD"]))]
+        Timestamp = [datetime.fromisoformat(RealtimeStream["StreamingTD"][i]["FirstPacketDateTime"].replace("Z","+00:00")).timestamp() for i in range(len(RealtimeStream["StreamingTD"]))]
         RealtimeStream["StreamingTD"] = listSort(RealtimeStream["StreamingTD"], np.flip(np.argsort(Timestamp)))
 
         RealtimeStream["StreamingPower"] = concatenateLists([Data, RealtimeStream], ["StreamingPower"])
         RealtimeStream["StreamingPower"] = removeDuplicates(RealtimeStream["StreamingPower"])
-        Timestamp = [datetime.fromisoformat(RealtimeStream["StreamingPower"][i]["FirstPacketDateTime"][:-1]+"+00:00").timestamp() for i in range(len(RealtimeStream["StreamingPower"]))]
+        Timestamp = [datetime.fromisoformat(RealtimeStream["StreamingPower"][i]["FirstPacketDateTime"].replace("Z","+00:00")).timestamp() for i in range(len(RealtimeStream["StreamingPower"]))]
         RealtimeStream["StreamingPower"] = listSort(RealtimeStream["StreamingPower"], np.flip(np.argsort(Timestamp)))
 
         if not cacheFilename == None:
@@ -2113,7 +2116,7 @@ def processIndefiniteStream(JSON, Data, cacheFilename=None):
     if "IndefiniteStream" in Data.keys():
         Timestamp = list()
         for Stream in Data["IndefiniteStream"]:
-            Timestamp.append(datetime.fromisoformat(Stream["FirstPacketDateTime"][:-1]+"+00:00").timestamp())
+            Timestamp.append(datetime.fromisoformat(Stream["FirstPacketDateTime"].replace("Z","+00:00")).timestamp())
         Timestamp = np.array(Timestamp)
 
         UniqueSessions = list()
@@ -2124,7 +2127,7 @@ def processIndefiniteStream(JSON, Data, cacheFilename=None):
         for sessionID in range(len(UniqueSessions)):
             MontageStream["IndefiniteStream"].append(list())
             for Stream in Data["IndefiniteStream"]:
-                StreamTimestamp = datetime.fromisoformat(Stream["FirstPacketDateTime"][:-1]+"+00:00").timestamp()
+                StreamTimestamp = datetime.fromisoformat(Stream["FirstPacketDateTime"].replace("Z","+00:00")).timestamp()
                 if StreamTimestamp < UniqueSessions[sessionID] + 5 and StreamTimestamp > UniqueSessions[sessionID] - 5:
                     MontageStream["IndefiniteStream"][-1].append(Stream)
 
