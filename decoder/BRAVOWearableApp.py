@@ -177,10 +177,7 @@ def decodeAppleWatchStructure(filenames):
     Data["SleepState"]["Data"] = np.array(Data["SleepState"]["Data"])
     return Data
 
-def decodeBRAVOWearableStructure(filename):
-    with open(filename, "rb") as file:
-        rawBytes = file.read()
-        
+def decodeMetaMotionStructureRaw(rawBytes):
     currentIndex = 80
     Headers = rawBytes[:currentIndex].decode("utf-8").rstrip("\x00")
     
@@ -205,12 +202,27 @@ def decodeBRAVOWearableStructure(filename):
             Data["Gyroscope"]["Time"].append(Timestamp)
             Data["Gyroscope"]["Data"].append(DataValues)
             currentIndex += 24
+        elif DataType == 45:
+            DataValues = np.frombuffer(rawBytes[currentIndex+4:currentIndex+8], np.uint32, count=1)[0]
+            Timestamp = np.frombuffer(rawBytes[currentIndex+8:currentIndex+16], np.float64, count=1)[0]
+            Data["AmbientLight"]["Time"].append(Timestamp)
+            Data["AmbientLight"]["Data"].append(DataValues)
+            currentIndex += 16
     
     Data["Accelerometer"]["Time"] = np.array(Data["Accelerometer"]["Time"])
     Data["Accelerometer"]["Data"] = np.array(Data["Accelerometer"]["Data"])
+    Data["RSSAccelerometer"]["Time"] = np.array(Data["RSSAccelerometer"]["Time"])
+    Data["RSSAccelerometer"]["Data"] = np.array(Data["RSSAccelerometer"]["Data"])
     Data["Gyroscope"]["Time"] = np.array(Data["Gyroscope"]["Time"])
     Data["Gyroscope"]["Data"] = np.array(Data["Gyroscope"]["Data"])
     Data["AmbientLight"]["Time"] = np.array(Data["AmbientLight"]["Time"])
     Data["AmbientLight"]["Data"] = np.array(Data["AmbientLight"]["Data"])
     
+    return Data
+
+def decodeBRAVOWearableStructure(filename):
+    with open(filename, "rb") as file:
+        rawBytes = file.read()
+
+    Data = decodeMetaMotionStructureRaw(rawBytes)
     return Data
