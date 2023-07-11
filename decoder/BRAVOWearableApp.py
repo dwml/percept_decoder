@@ -40,9 +40,9 @@ def decodeAppleWatchStructureRaw(rawBytes):
             Data["TremorSeverity"]["Data"].append(DataValues)
             currentIndex += 16
         elif DataType == 82:
-            DataValues = np.frombuffer(rawBytes[currentIndex+1], np.uint8, count=1)[0]/255
+            DataValues = rawBytes[currentIndex+1]/255
             TimeRange = np.frombuffer(rawBytes[currentIndex+2:currentIndex+4], np.uint16, count=1)[0]
-            Timestamp = np.frombuffer(rawBytes[currentIndex+4:currentIndex+8], np.float64, count=1)[0] + referenceTimestamp
+            Timestamp = np.frombuffer(rawBytes[currentIndex+4:currentIndex+8], np.float32, count=1)[0] + referenceTimestamp
             Data["DyskineticProbability"]["Time"].append(Timestamp)
             Data["DyskineticProbability"]["TimeRange"].append(TimeRange)
             Data["DyskineticProbability"]["Data"].append(DataValues)
@@ -103,44 +103,47 @@ def decodeAppleWatchStructure(filenames):
     else:
         listOfFiles = filenames
     
-    Data = {"DeviceID": "AppleWatch", "Accelerometer": {"Time": [], "Data": []}, 
+    Data = {"DeviceID": Headers, "Accelerometer": {"Time": [], "Data": []}, 
             "TremorSeverity": {"Time": [], "TimeRange": [], "Data": []}, 
             "DyskineticProbability": {"Time": [], "TimeRange": [], "Data": []}, 
             "HeartRate": {"Time": [], "TimeRange": [], "Data": [], "MotionContext": []}, 
             "HeartRateVariability": {"Time": [], "TimeRange": [], "Data": []}, 
             "SleepState": {"Time": [], "TimeRange": [], "Data": []}}
-    
+        
     for filename in listOfFiles:
         with open(filename, "rb") as fid:
             rawBytes = fid.read()
             
-        currentIndex = 80
+        currentIndex = 72
         Headers = rawBytes[:currentIndex].decode("utf-8").rstrip("\x00")
         
+        referenceTimestamp = np.frombuffer(rawBytes[currentIndex:currentIndex+8], np.float64, count=1)[0]
+        currentIndex += 8
+
         while currentIndex < len(rawBytes)-1:
             DataType = rawBytes[currentIndex]
-            if DataType == 125:
-                DataValues = np.frombuffer(rawBytes[currentIndex+2:currentIndex+8], np.int16, count=3)
-                Timestamp = np.frombuffer(rawBytes[currentIndex+8:currentIndex+16], np.float64, count=1)[0]
+            if DataType == 80:
+                DataValues = np.frombuffer(rawBytes[currentIndex+2:currentIndex+8], np.int16, count=3) / 1000
+                Timestamp = np.frombuffer(rawBytes[currentIndex+8:currentIndex+12], np.float32, count=1)[0] + referenceTimestamp
                 Data["Accelerometer"]["Time"].append(Timestamp)
                 Data["Accelerometer"]["Data"].append(DataValues)
-                currentIndex += 16
-            elif DataType == 126:
-                DataValues = np.frombuffer(rawBytes[currentIndex+1:currentIndex+7], np.int8, count=6)
+                currentIndex += 12
+            elif DataType == 81:
+                DataValues = np.frombuffer(rawBytes[currentIndex+1:currentIndex+7], np.int8, count=6) / 100
                 TimeRange = np.frombuffer(rawBytes[currentIndex+8:currentIndex+10], np.uint16, count=1)[0]
-                Timestamp = np.frombuffer(rawBytes[currentIndex+16:currentIndex+24], np.float64, count=1)[0]
+                Timestamp = np.frombuffer(rawBytes[currentIndex+12:currentIndex+16], np.float32, count=1)[0] + referenceTimestamp
                 Data["TremorSeverity"]["Time"].append(Timestamp)
                 Data["TremorSeverity"]["TimeRange"].append(TimeRange)
                 Data["TremorSeverity"]["Data"].append(DataValues)
-                currentIndex += 24
-            elif DataType == 127:
-                DataValues = np.frombuffer(rawBytes[currentIndex+2:currentIndex+4], np.uint16, count=1)[0]/60000
-                TimeRange = np.frombuffer(rawBytes[currentIndex+4:currentIndex+6], np.uint16, count=1)[0]
-                Timestamp = np.frombuffer(rawBytes[currentIndex+8:currentIndex+16], np.float64, count=1)[0]
+                currentIndex += 16
+            elif DataType == 82:
+                DataValues = rawBytes[currentIndex+1]/255
+                TimeRange = np.frombuffer(rawBytes[currentIndex+2:currentIndex+4], np.uint16, count=1)[0]
+                Timestamp = np.frombuffer(rawBytes[currentIndex+4:currentIndex+8], np.float32, count=1)[0] + referenceTimestamp
                 Data["DyskineticProbability"]["Time"].append(Timestamp)
                 Data["DyskineticProbability"]["TimeRange"].append(TimeRange)
                 Data["DyskineticProbability"]["Data"].append(DataValues)
-                currentIndex += 16
+                currentIndex += 8
             elif DataType == 128:
                 DataValues = np.frombuffer(rawBytes[currentIndex+2:currentIndex+4], np.uint16, count=1)[0]
                 MotionContext = rawBytes[currentIndex+1]
@@ -151,8 +154,15 @@ def decodeAppleWatchStructure(filenames):
                 Data["HeartRate"]["Data"].append(DataValues)
                 Data["HeartRate"]["MotionContext"].append(MotionContext)
                 currentIndex += 16
+            elif DataType == 129:
+                DataValues = np.frombuffer(rawBytes[currentIndex+2:currentIndex+4], np.uint16, count=1)[0]
+                TimeRange = np.frombuffer(rawBytes[currentIndex+4:currentIndex+6], np.uint16, count=1)[0]
+                Timestamp = np.frombuffer(rawBytes[currentIndex+8:currentIndex+16], np.float64, count=1)[0]
+                Data["HeartRateVariability"]["Time"].append(Timestamp)
+                Data["HeartRateVariability"]["TimeRange"].append(TimeRange)
+                Data["HeartRateVariability"]["Data"].append(DataValues)
+                currentIndex += 16
             elif DataType == 130:
-                print(np.frombuffer(rawBytes[currentIndex+0:currentIndex+8], np.uint8, count=8))
                 DataValues = rawBytes[currentIndex+1]
                 TimeRange = np.frombuffer(rawBytes[currentIndex+2:currentIndex+4], np.uint16, count=1)[0]
                 Timestamp = np.frombuffer(rawBytes[currentIndex+8:currentIndex+16], np.float64, count=1)[0]
@@ -162,7 +172,6 @@ def decodeAppleWatchStructure(filenames):
                 currentIndex += 16
             else:
                 print("New Data")
-                print(filename)
                 raise Exception
                 
     Data["Accelerometer"]["Time"] = np.array(Data["Accelerometer"]["Time"])
@@ -175,6 +184,7 @@ def decodeAppleWatchStructure(filenames):
     Data["HeartRate"]["Data"] = np.array(Data["HeartRate"]["Data"])
     Data["SleepState"]["Time"] = np.array(Data["SleepState"]["Time"])
     Data["SleepState"]["Data"] = np.array(Data["SleepState"]["Data"])
+    
     return Data
 
 def decodeMetaMotionStructureRaw(rawBytes):
