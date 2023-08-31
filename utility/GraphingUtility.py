@@ -10,6 +10,10 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import numpy as np
 from scipy import stats
 
+import plotly.graph_objects as go
+import plotly.offline as po
+from plotly.subplots import make_subplots
+from matplotlib import dates
 
 def stderr(data, axis=0):
     return np.std(data, axis=axis)/np.sqrt(data.shape[axis])
@@ -156,5 +160,113 @@ def imagesc(x, y, z, clim=None, cmap=plt.get_cmap("jet"), interpolation="gaussia
 
 def addAxes(fig):
     return fig.add_axes([0.1,0.1,0.8,0.8])
+
+def colorTextFromCmap(color):
+    if type(color) == str:
+        colorInfoString = color.split(",")
+        colorInfoString = [string.replace("rgb(","").replace(")","") for string in colorInfoString]
+        colorInfo = [int(i) for i in colorInfoString]
+    else:
+        colorInfo = np.array(color[:-1]) * 255
+    colorText = f"#{hex(int(colorInfo[0])).replace('0x',''):0>2}{hex(int(colorInfo[1])).replace('0x',''):0>2}{hex(int(colorInfo[2])).replace('0x',''):0>2}"
+    return colorText
+
+class PlotlyFigure:
+    def __init__(self, resolution=(1600,900), subplots=[1,1], vertical_spacing=0.1, subplot_titles=None, shared_xaxes=True, shared_yaxes=True, dpi=100.0):
+        self.resolution = resolution 
+        self.dpi = dpi
+        self.layout = subplots
+        self.sharex = shared_xaxes
+        self.sharey = shared_yaxes
+
+        self.fig = make_subplots(rows=subplots[0], cols=subplots[1], shared_xaxes=shared_xaxes, shared_yaxes=shared_yaxes,
+            vertical_spacing=vertical_spacing, subplot_titles=subplot_titles)
+        
+        for i in range(subplots[0]*subplots[1]):
+            self.set_ylayout(dict(type="linear", range=(0,100), tickfont_size=12,
+                     color="#000000", ticks="outside", showline=True, linecolor="#000000",
+                     showgrid=True, gridcolor="#DDDDDD"), ax=i)
+            self.set_xlayout(dict(type="linear", range=(0,100), tickfont_size=12,
+                     color="#000000", ticks="outside", showline=True, linecolor="#000000",
+                     showgrid=True, gridcolor="#DDDDDD"), ax=i)
+            
+        self.fig.layout["paper_bgcolor"]="#FFFFFF"
+        self.fig.layout["plot_bgcolor"]="#FFFFFF"
+        self.fig.update_layout(hovermode="x")
+
+    def plot(self, x, y, name="", color="#3BDEFF", linewidth=2, hovertemplate="<extra></extra>", legendgroup=None, ax=0):
+        RGB = [int(color[i:i+2], 16) for i in (1, 3, 5)]
+        
+        self.fig.add_trace(
+            go.Scatter(x=x, y=y, mode="lines", name=name, 
+                       line=dict(color="rgba({0},{1},{2},1)".format(RGB[0], RGB[1], RGB[2]), width=linewidth),
+                       hovertemplate=hovertemplate, legendgroup=legendgroup, showlegend=True),
+            row=self.getRow(ax), col=self.getCol(ax)
+        )
+
+    def getRow(self, ax):
+        return int(ax / self.layout[1])+1
     
+    def getCol(self, ax):
+        return np.remainder(ax, self.layout[1])+1
+
+    def addShadedErrorBar(self, x, y, stderr, color="#3BDEFF", alpha=0.5, legendgroup=None, ax=0):
+        RGB = [int(color[i:i+2], 16) for i in (1, 3, 5)]
+
+        self.fig.add_trace(
+            go.Scatter(x=x,
+                    y=y+stderr,
+                    mode="lines",
+                    line=dict(color=color, width=0.0),
+                    fill=None,
+                    hoverinfo="skip",
+                    showlegend=False,
+                    legendgroup=legendgroup),
+            row=self.getRow(ax), col=self.getCol(ax)
+        )
+
+        self.fig.add_trace(
+            go.Scatter(x=x,
+                    y=y-stderr,
+                    mode="lines",
+                    line=dict(color=color, width=0.0),
+                    fill="tonexty", fillcolor="rgba({0},{1},{2},{3})".format(RGB[0], RGB[1], RGB[2], alpha),
+                    hoverinfo="skip",
+                    showlegend=False,
+                    legendgroup=legendgroup),
+            row=self.getRow(ax), col=self.getCol(ax)
+        )
+
+    def set_xlabel(self, label, fontsize=15, ax=0): 
+        self.fig.update_xaxes(title_font_size=fontsize, title_text=label, 
+            row=self.getRow(ax), col=self.getCol(ax))
+        
+    def set_xlim(self, limits, ax=0):
+        if self.sharex:
+            for i in range(self.layout[0]):
+                self.fig.update_xaxes(range=limits, row=i+1, col=self.getCol(ax))
+        else:
+            self.fig.update_xaxes(range=limits, row=self.getRow(ax), col=self.getCol(ax))
+
+    def set_xlayout(self, layoutprops, ax=0):
+        self.fig.update_xaxes(layoutprops, row=self.getRow(ax), col=self.getCol(ax))
+
+    def set_ylabel(self, label, fontsize=15, ax=0): 
+        self.fig.update_yaxes(title_font_size=fontsize, title_text=label, 
+            row=self.getRow(ax), col=self.getCol(ax))
+
+    def set_ylim(self, limits, ax=0):
+        if self.sharey:
+            for i in range(self.layout[0]):
+                self.fig.update_yaxes(range=limits, row=self.getRow(ax), col=i+1)
+        else:
+            self.fig.update_yaxes(range=limits, row=self.getRow(ax), col=self.getCol(ax))
     
+    def set_ylayout(self, layoutprops, ax=0):
+        self.fig.update_yaxes(layoutprops, row=self.getRow(ax), col=self.getCol(ax))
+
+    def show(self, filename=None):
+        if filename:
+            return po.plot(self.fig, filename=filename, auto_open=False) 
+        else:
+            return po.plot(self.fig)
