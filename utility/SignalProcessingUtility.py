@@ -318,6 +318,28 @@ def autoregressiveSpectrogram(data, window=2.0, overlap=1.0, frequency_resolutio
     
     return dict({"Time": time, "Frequency": frequency, "Power": spectrum, "logPower": 10*np.log10(spectrum), "Config": configuration})
 
+def MedtronicPSD(data, fs=250):
+    window = 256
+    freq = np.arange(window)/window*fs
+    power = np.zeros(len(freq))
+
+    packets = [24,38,25,38]
+    count = 0
+    nfft = 0
+
+    maxIndex = 0
+    while maxIndex < len(data):
+        if maxIndex >= 250:
+            windowed_data = np.zeros(window)
+            windowed_data[:250] = data[maxIndex-250:maxIndex]* (np.hanning(250)/54)
+            windowed_data 
+            power += np.abs(np.fft.fft(windowed_data))
+            nfft += 1
+        maxIndex += packets[count % 4]
+        count += 1
+
+    return freq[0:100], power[0:100]/nfft
+
 def defaultSpectrogram(data, window=2.0, overlap=1.0, frequency_resolution=0.5, fs=100):
     configuration = {"Window": window, "Overlap": overlap}
     window = int(window * fs)
