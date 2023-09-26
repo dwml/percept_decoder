@@ -146,6 +146,10 @@ def getDeviceSettings(DataFolder):
             # TODO: Add UTC Offset
             Configuration["SessionDateTime"] = datetime.fromtimestamp(float(DeviceConfiguration["RecordInfo"]["SessionId"]) / 1000.0) 
         
+        # General Setup
+        if "GeneralData" in DeviceConfiguration.keys():
+            Configuration["GeneralData"] = DeviceConfiguration["GeneralData"]
+        
         # Telemetry Reconnection?
         if "TelemetryModuleInfo" in DeviceConfiguration.keys():
             Configuration["TelemetryModule"] = DeviceConfiguration["TelemetryModuleInfo"]
@@ -235,9 +239,16 @@ def getDeviceSettings(DataFolder):
                             for e in range(16):
                                 if not DeviceConfiguration["TherapyConfigGroup" + str(n)]["programs"][i]["electrodes"]["electrodes"][e]["isOff"]:
                                     ProgramSetting["Electrode"] += ElectrodeType[DeviceConfiguration["TherapyConfigGroup" + str(n)]["programs"][i]["electrodes"]["electrodes"][e]["electrodeType"]] + str(e)
-                                    ProgramSetting["ElectrodeList"].append(e)
+                                    ProgramSetting["ElectrodeList"].append({
+                                        "ElectrodeState": ElectrodeType[DeviceConfiguration["TherapyConfigGroup" + str(n)]["programs"][i]["electrodes"]["electrodes"][e]["electrodeType"]],
+                                        "Channel": e
+                                    })
                             if not DeviceConfiguration["TherapyConfigGroup" + str(n)]["programs"][i]["electrodes"]["electrodes"][16]["isOff"]:
                                 ProgramSetting["Electrode"] += ElectrodeType[DeviceConfiguration["TherapyConfigGroup" + str(n)]["programs"][i]["electrodes"]["electrodes"][16]["electrodeType"]] + "CAN"
+                                ProgramSetting["ElectrodeList"].append({
+                                    "ElectrodeState": ElectrodeType[DeviceConfiguration["TherapyConfigGroup" + str(n)]["programs"][i]["electrodes"]["electrodes"][16]["electrodeType"]],
+                                    "Channel": "CAN"
+                                })
                         TherapyConfig["Programs"].append(ProgramSetting)
                 else:
                     TherapyConfig["Valid"] = False
@@ -486,7 +497,7 @@ def fixMissingPacket_TD(Data, StreamRate, PacketSize):
     FixedData["DriftSlope"] = 1 / (1 + coefficients[1]);
     
     # Use the SystemTicks as adjustment for missing packets
-    PacketID = 2
+    PacketID =  len(FixedData["SystemTick"])
     while PacketID < len(FixedData["SystemTick"]):
         skipSequence = np.round((FixedData["SystemTick"][PacketID] - FixedData["SystemTick"][PacketID - 1]) / StreamRate).astype(int)
         additionalPackets = np.round(FixedData["Size"][PacketID] / PacketSize).astype(int)
@@ -877,7 +888,7 @@ def getErrorLogs(DataFolder):
         ErrorLogs.append(Data)
     return ErrorLogs
 
-def getAdaptiveSensingLog(DataFolder):
+def getAdaptiveSensingLog(DataFolder, timeshift):
     logFolderName = ""
     
     for folder in os.listdir(DataFolder):
@@ -914,7 +925,7 @@ def getAdaptiveSensingLog(DataFolder):
                         components = LogContent[lineNum].split(" ")
                         for i in range(len(components)):
                             if components[i] == "=":
-                                LogEntry["Timestamp"] = int(components[i+1].strip(","), 16) + 951868800
+                                LogEntry["Timestamp"] = int(components[i+1].strip(","), 16) + 946702800 - timeshift
                                 break
                     
                     if "LogEntry.Payload" in LogContent[lineNum]:
@@ -928,7 +939,6 @@ def getAdaptiveSensingLog(DataFolder):
                                 break
                     
                     if "EntryPayload" in LogContent[lineNum] and "CommonLogPayload" in LogContent[lineNum]:
-                    
                         if LogEntry["Payload"]["ID"] == "AdaptiveTherapyStateChange":
                             LogEntry["Payload"]["AdaptiveTherapy"] = {}
                             lineNum += 1
@@ -951,9 +961,16 @@ def getAdaptiveSensingLog(DataFolder):
                     print(e)
                     
                 lineNum += 1
-            return AllLogs[-1:0:-1]
+            
+            filteredLogs = []
+            for log in AllLogs:
+                if "Payload" in log.keys():
+                    if "ID" in log["Payload"].keys():
+                        filteredLogs.append(log)
+                        
+            return filteredLogs[-1:0:-1]
 
-def getSystemEventLogs(DataFolder):
+def getSystemEventLogs(DataFolder, timeshift=0):
     logFolderName = ""
     
     for folder in os.listdir(DataFolder):
@@ -990,7 +1007,7 @@ def getSystemEventLogs(DataFolder):
                         components = LogContent[lineNum].split(" ")
                         for i in range(len(components)):
                             if components[i] == "=":
-                                LogEntry["Timestamp"] = int(components[i+1].strip(","), 16) + 951868800
+                                LogEntry["Timestamp"] = int(components[i+1].strip(","), 16) + 946702800 - timeshift
                                 break
                     
                     if "LogEntry.Payload" in LogContent[lineNum]:
@@ -1035,7 +1052,7 @@ def findLatestConfiguration(Configurations, UnixTimeOfFirstPacket, Type):
         if Type == "AdaptiveStim":
             if config["Time"] < UnixTimeOfFirstPacket:
                 combinedConfig = dict()
-                if "Detector" in config.keys() or "Adaptive" in config.keys():
+                if "Detector" in config.keys() or "Adaptive" in config.keys() or "SensingConfiguration" in config.keys():
                     TargetConfiguration = dict()
                     if "Detector" in config.keys():
                         TargetConfiguration["Detector"] = config["Detector"]
@@ -1050,6 +1067,8 @@ def findLatestConfiguration(Configurations, UnixTimeOfFirstPacket, Type):
                     TargetConfiguration["PowerBands"] = config["SensingConfiguration"]["Power"]
                 if "PowerEnable" in config["SensingConfiguration"].keys():
                     TargetConfiguration["Enabled"] = config["SensingConfiguration"]["PowerEnable"]
+                if "Lfp" in config["SensingConfiguration"].keys():
+                    TargetConfiguration["LfpConfig"] = config["SensingConfiguration"]["Lfp"]
             else:
                 if Type in config["SensingConfiguration"].keys():
                     TargetConfiguration = config["SensingConfiguration"][Type]
@@ -1108,7 +1127,7 @@ def LoadData(DataFolder, DataType=["Lfp", "FFT", "Power", "Accelerometer", "Adap
     for file in os.listdir(DataFolder):
         if file.startswith("Device") and os.path.isdir(DataFolder + "/" + file):
             DataFolder = DataFolder + "/" + file + "/"
-    
+
     Data = dict()
     Data["Config"] = getDeviceSettings(DataFolder)
             
@@ -1254,12 +1273,20 @@ def LoadData(DataFolder, DataType=["Lfp", "FFT", "Power", "Accelerometer", "Adap
 
                     #Data[key][n]["Configuration"] = findLatestConfiguration(Data["Config"], Data[key][n]["UnixTime"][0], key)
                     Data[key][n]["Configuration"] = findLatestConfiguration(Data["Config"], Data[key][n]["UnixTime"][0], key)
-                    
-    Data["StimLogs"] = getStimulationLogs(DataFolder)
-    Data["EventLogs"] = getEventLogs(DataFolder)
-    Data["ErrorLogs"] = getErrorLogs(DataFolder)
-    Data["SystemLogs"] = getSystemEventLogs(DataFolder)
-    Data["AdaptiveLogs"] = getAdaptiveSensingLog(DataFolder)
+                    Data[key][n]["Configuration"]["Power"] = findLatestConfiguration(Data["Config"], Data[key][n]["UnixTime"][0], "Power")
+    
+    try:
+        HostUnixTime = Data["Config"][0]["Time"]
+        DeviceTime = Data["Config"][0]["GeneralData"]["deviceTime"]["seconds"] + 946702800
+        Timeshift = DeviceTime - HostUnixTime
+
+        Data["StimLogs"] = getStimulationLogs(DataFolder)
+        Data["EventLogs"] = getEventLogs(DataFolder)
+        Data["ErrorLogs"] = getErrorLogs(DataFolder)
+        Data["SystemLogs"] = getSystemEventLogs(DataFolder, timeshift=Timeshift)
+        Data["AdaptiveLogs"] = getAdaptiveSensingLog(DataFolder, timeshift=Timeshift)
+    except Exception as e:
+        pass
     
     return Data
 
@@ -1323,7 +1350,8 @@ def TherapyReconstruction(Data):
                                     CurrentTherapy[groupID]["Programs"][programID]["Amplitude"] = log["TherapyGroups"][groupID]["Programs"][programID]["Amplitude"]
                                 if "PulseWidth" in log["TherapyGroups"][groupID]["Programs"][programID].keys():
                                     CurrentTherapy[groupID]["Programs"][programID]["PulseWidth"] = log["TherapyGroups"][groupID]["Programs"][programID]["PulseWidth"]
-    
+        
+        CurrentTherapy[3]["Adaptive"] = findLatestConfiguration(Data["Config"], log["Time"], "AdaptiveStim")
         TherapyConfiguration.append({"Time": log["Time"], "Therapy": copy.deepcopy(CurrentTherapy)})
     
     TherapyID = 1
