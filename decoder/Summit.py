@@ -1064,7 +1064,7 @@ def findLatestConfiguration(Configurations, UnixTimeOfFirstPacket, Type):
                 if "FFT" in config["SensingConfiguration"].keys():
                     TargetConfiguration = config["SensingConfiguration"]["FFT"]
                 if "Power" in config["SensingConfiguration"].keys():
-                    TargetConfiguration["PowerBands"] = config["SensingConfiguration"]["Power"]
+                    TargetConfiguration["PowerBands"] = config["SensingConfiguration"]["Power"].tolist()
                 if "PowerEnable" in config["SensingConfiguration"].keys():
                     TargetConfiguration["Enabled"] = config["SensingConfiguration"]["PowerEnable"]
                 if "Lfp" in config["SensingConfiguration"].keys():
@@ -1352,6 +1352,7 @@ def TherapyReconstruction(Data):
                                     CurrentTherapy[groupID]["Programs"][programID]["PulseWidth"] = log["TherapyGroups"][groupID]["Programs"][programID]["PulseWidth"]
         
         CurrentTherapy[3]["Adaptive"] = findLatestConfiguration(Data["Config"], log["Time"], "AdaptiveStim")
+        CurrentTherapy[3]["Adaptive"]["Power"] = findLatestConfiguration(Data["Config"], log["Time"], "Power")
         TherapyConfiguration.append({"Time": log["Time"], "Therapy": copy.deepcopy(CurrentTherapy)})
     
     TherapyID = 1
