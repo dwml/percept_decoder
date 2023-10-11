@@ -1415,6 +1415,17 @@ def extractPowerDomainStreamingData(JSON, sourceData=dict()):
                 Stream["Time"][PackageID] = Stream["LfpData"][PackageID]["TicksInMs"] / 1000.0
                 Stream["Ticks"][PackageID] = Stream["LfpData"][PackageID]["TicksInMs"]
                 
+            while True:
+                if np.all(Stream["Sequences"][:2] == Stream["Sequences"][2:4]):
+                    Stream["Power"] = Stream["Power"][2:,:]
+                    Stream["Stimulation"] = Stream["Stimulation"][2:,:]
+                    Stream["Sequences"] = Stream["Sequences"][2:]
+                    Stream["Time"] = Stream["Time"][2:]
+                    Stream["Ticks"] = Stream["Ticks"][2:]
+                    print(f"Stream {Stream['FirstPacketDateTime']} Repeated Sequences")
+                else:
+                    break
+                
             Stream["InitialTickInMs"] = Stream["LfpData"][0]["TicksInMs"] % 1000.0
             Stream["Time"] -= Stream["Time"][0]
             Stream["Time"] = np.around(Stream["Time"].flatten(),3)
