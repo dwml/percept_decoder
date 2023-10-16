@@ -434,7 +434,9 @@ def getTimeDomainData(DataFolder):
                     Data["Size"][PacketID] = TimeDomainData["TimeDomainData"][PacketID]["Header"]["dataSize"] / 2 / np.sum(Data["Channels"][PacketID,:])
                     Data["SamplingRate"][PacketID] = TdSampleRates[TimeDomainData["TimeDomainData"][PacketID]["SampleRate"]]
                     
+                    Data["Size"][PacketID] = len(TimeDomainData["TimeDomainData"][PacketID]["ChannelSamples"][0]["Value"])
                     Data["Data"][PacketID] = np.zeros((int(Data["Size"][PacketID]),4))
+
                     for tdPacket in TimeDomainData["TimeDomainData"][PacketID]["ChannelSamples"]:
                         Data["Data"][PacketID][:,tdPacket["Key"]] = tdPacket["Value"]
                     
