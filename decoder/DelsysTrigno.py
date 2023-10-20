@@ -24,56 +24,90 @@ def decodeHPFCSV(filename, skiprows=0):
     
     for key in CSV.keys():
         if key.find("EMG") > 0:
-            sensorID = int(key.split(":")[0].replace("Trigno IM sensor ","").replace("Trigno sensor ",""))
+            sensorID = int(key.split(":")[0].replace("Trigno IM sensor ","").replace("Trigno sensor ","").replace("Avanti sensor ",""))
             Delsys["EMG"][sensorID-1] = np.array(CSV[key])
             EMGTime = np.array(CSV[lastKey])
-            DelsysRate = 1 / np.median(np.diff(EMGTime))
+            SelectedData = ~np.isnan(CSV[lastKey])
+            EMGTime = EMGTime[SelectedData]
+            Delsys["EMG"][sensorID-1] = Delsys["EMG"][sensorID-1][SelectedData]
+            DelsysRate = 1 / np.mean(np.diff(EMGTime))
         elif key.find("Acc") > 0:
-            sensorID = int(key.split(":")[0].replace("Trigno IM sensor ","").replace("Trigno sensor ",""))
+            sensorID = int(key.split(":")[0].replace("Trigno IM sensor ","").replace("Trigno sensor ","").replace("Avanti sensor ",""))
+            ACCData = np.array(CSV[key][~np.isnan(CSV[lastKey])])
             if Delsys["Acc"][sensorID-1].shape[0] == 0:
-                Delsys["Acc"][sensorID-1] = np.zeros((len(np.array(CSV[key])), 3))
-            if key.find(f"{sensorID}.X") > 0:
-                Delsys["Acc"][sensorID-1][:,0] = np.array(CSV[key])
-            elif key.find(f"{sensorID}.Y") > 0:
-                Delsys["Acc"][sensorID-1][:,1] = np.array(CSV[key])
-            elif key.find(f"{sensorID}.Z") > 0:
-                Delsys["Acc"][sensorID-1][:,2] = np.array(CSV[key])
+                Delsys["Acc"][sensorID-1] = np.zeros((len(ACCData), 3))
+            if len(ACCData) <= Delsys["Acc"][sensorID-1].shape[0]:
+                if key.find(f"{sensorID}.X") > 0:
+                    Delsys["Acc"][sensorID-1][:len(ACCData),0] = ACCData
+                elif key.find(f"{sensorID}.Y") > 0:
+                    Delsys["Acc"][sensorID-1][:len(ACCData),1] = ACCData
+                elif key.find(f"{sensorID}.Z") > 0:
+                    Delsys["Acc"][sensorID-1][:len(ACCData),2] = ACCData
+            else:
+                if key.find(f"{sensorID}.X") > 0:
+                    Delsys["Acc"][sensorID-1][:,0] = ACCData[:Delsys["Acc"][sensorID-1].shape[0]]
+                elif key.find(f"{sensorID}.Y") > 0:
+                    Delsys["Acc"][sensorID-1][:,1] = ACCData[:Delsys["Acc"][sensorID-1].shape[0]]
+                elif key.find(f"{sensorID}.Z") > 0:
+                    Delsys["Acc"][sensorID-1][:,2] = ACCData[:Delsys["Acc"][sensorID-1].shape[0]]
+        
             IMUTime = np.array(CSV[lastKey])
             IMUTime = IMUTime[IMUTime != 0]
-            IMURate = 1 / np.median(np.diff(IMUTime))
+            IMURate = 1 / np.mean(np.diff(IMUTime[~np.isnan(IMUTime)]))
             
         elif key.find("Gyro") > 0:
-            sensorID = int(key.split(":")[0].replace("Trigno IM sensor ","").replace("Trigno sensor ",""))
+            sensorID = int(key.split(":")[0].replace("Trigno IM sensor ","").replace("Trigno sensor ","").replace("Avanti sensor ",""))
+            GyroData = np.array(CSV[key][~np.isnan(CSV[lastKey])])
             if Delsys["Gyro"][sensorID-1].shape[0] == 0:
-                Delsys["Gyro"][sensorID-1] = np.zeros((len(np.array(CSV[key])), 3))
-            if key.find(f"{sensorID}.X") > 0:
-                Delsys["Gyro"][sensorID-1][:,0] = np.array(CSV[key])
-            elif key.find(f"{sensorID}.Y") > 0:
-                Delsys["Gyro"][sensorID-1][:,1] = np.array(CSV[key])
-            elif key.find(f"{sensorID}.Z") > 0:
-                Delsys["Gyro"][sensorID-1][:,2] = np.array(CSV[key])
+                Delsys["Gyro"][sensorID-1] = np.zeros((len(GyroData), 3))
+            if len(GyroData) <= Delsys["Gyro"][sensorID-1].shape[0]:
+                if key.find(f"{sensorID}.X") > 0:
+                    Delsys["Gyro"][sensorID-1][:len(GyroData),0] = GyroData
+                elif key.find(f"{sensorID}.Y") > 0:
+                    Delsys["Gyro"][sensorID-1][:len(GyroData),1] = GyroData
+                elif key.find(f"{sensorID}.Z") > 0:
+                    Delsys["Gyro"][sensorID-1][:len(GyroData),2] = GyroData
+            else:
+                if key.find(f"{sensorID}.X") > 0:
+                    Delsys["Gyro"][sensorID-1][:,0] = GyroData[:Delsys["Gyro"][sensorID-1].shape[0]]
+                elif key.find(f"{sensorID}.Y") > 0:
+                    Delsys["Gyro"][sensorID-1][:,1] = GyroData[:Delsys["Gyro"][sensorID-1].shape[0]]
+                elif key.find(f"{sensorID}.Z") > 0:
+                    Delsys["Gyro"][sensorID-1][:,2] = GyroData[:Delsys["Gyro"][sensorID-1].shape[0]]
+                
         elif key.find("Mag") > 0:
-            sensorID = int(key.split(":")[0].replace("Trigno IM sensor ","").replace("Trigno sensor ",""))
+            sensorID = int(key.split(":")[0].replace("Trigno IM sensor ","").replace("Trigno sensor ","").replace("Avanti sensor ",""))
+            MagData = np.array(CSV[key][~np.isnan(CSV[lastKey])])
             if Delsys["Mag"][sensorID-1].shape[0] == 0:
-                Delsys["Mag"][sensorID-1] = np.zeros((len(np.array(CSV[key])), 3))
-            if key.find(f"{sensorID}.X") > 0:
-                Delsys["Mag"][sensorID-1][:,0] = np.array(CSV[key])
-            elif key.find(f"{sensorID}.Y") > 0:
-                Delsys["Mag"][sensorID-1][:,1] = np.array(CSV[key])
-            elif key.find(f"{sensorID}.Z") > 0:
-                Delsys["Mag"][sensorID-1][:,2] = np.array(CSV[key])
+                Delsys["Mag"][sensorID-1] = np.zeros((len(MagData), 3))
+            if len(MagData) <= Delsys["Mag"][sensorID-1].shape[0]:
+                if key.find(f"{sensorID}.X") > 0:
+                    Delsys["Mag"][sensorID-1][:len(MagData),0] = MagData
+                elif key.find(f"{sensorID}.Y") > 0:
+                    Delsys["Mag"][sensorID-1][:len(MagData),1] = MagData
+                elif key.find(f"{sensorID}.Z") > 0:
+                    Delsys["Mag"][sensorID-1][:len(MagData),2] = MagData
+            else:
+                if key.find(f"{sensorID}.X") > 0:
+                    Delsys["Mag"][sensorID-1][:,0] = MagData[:Delsys["Mag"][sensorID-1].shape[0]]
+                elif key.find(f"{sensorID}.Y") > 0:
+                    Delsys["Mag"][sensorID-1][:,1] = MagData[:Delsys["Mag"][sensorID-1].shape[0]]
+                elif key.find(f"{sensorID}.Z") > 0:
+                    Delsys["Mag"][sensorID-1][:,2] = MagData[:Delsys["Mag"][sensorID-1].shape[0]]
+                
         elif key.find("Analog") > 0:
             sensorID = int(key.split(":")[0].replace("Trigno Analog Input Adapter ",""))
+            EMGData = np.array(CSV[key][~np.isnan(CSV[lastKey])])
             if Delsys["EMG"][sensorID-1].shape[0] == 0:
-                Delsys["EMG"][sensorID-1] = np.zeros((len(np.array(CSV[key])), 4))
+                Delsys["EMG"][sensorID-1] = np.zeros((len(EMGData), 4))
             if key.find(f"{sensorID}.A") > 0:
-                Delsys["EMG"][sensorID-1][:,0] = np.array(CSV[key])
+                Delsys["EMG"][sensorID-1][:,0] = EMGData
             elif key.find(f"{sensorID}.B") > 0:
-                Delsys["EMG"][sensorID-1][:,1] = np.array(CSV[key])
+                Delsys["EMG"][sensorID-1][:,1] = EMGData
             elif key.find(f"{sensorID}.C") > 0:
-                Delsys["EMG"][sensorID-1][:,2] = np.array(CSV[key])
+                Delsys["EMG"][sensorID-1][:,2] = EMGData
             elif key.find(f"{sensorID}.D") > 0:
-                Delsys["EMG"][sensorID-1][:,3] = np.array(CSV[key])
+                Delsys["EMG"][sensorID-1][:,3] = EMGData
                 
         lastKey = key
     

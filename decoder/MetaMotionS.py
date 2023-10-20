@@ -63,6 +63,14 @@ def decodeAppleWatchStructure(filenames):
                 Data["HeartRate"]["Data"].append(DataValues)
                 Data["HeartRate"]["MotionContext"].append(MotionContext)
                 currentIndex += 16
+            elif DataType == 129:
+                DataValues = np.frombuffer(rawBytes[currentIndex+2:currentIndex+4], np.uint16, count=1)[0]
+                TimeRange = np.frombuffer(rawBytes[currentIndex+4:currentIndex+6], np.uint16, count=1)[0]
+                Timestamp = np.frombuffer(rawBytes[currentIndex+8:currentIndex+16], np.float64, count=1)[0]
+                Data["HeartRateVariability"]["Time"].append(Timestamp)
+                Data["HeartRateVariability"]["TimeRange"].append(TimeRange)
+                Data["HeartRateVariability"]["Data"].append(DataValues)
+                currentIndex += 16
             elif DataType == 130:
                 print(np.frombuffer(rawBytes[currentIndex+0:currentIndex+8], np.uint8, count=8))
                 DataValues = rawBytes[currentIndex+1]
@@ -85,6 +93,8 @@ def decodeAppleWatchStructure(filenames):
     Data["TremorSeverity"]["Data"] = np.array(Data["TremorSeverity"]["Data"]) / 100
     Data["HeartRate"]["Time"] = np.array(Data["HeartRate"]["Time"])
     Data["HeartRate"]["Data"] = np.array(Data["HeartRate"]["Data"])
+    Data["HeartRateVariability"]["Time"] = np.array(Data["HeartRateVariability"]["Time"])
+    Data["HeartRateVariability"]["Data"] = np.array(Data["HeartRateVariability"]["Data"])
     Data["SleepState"]["Time"] = np.array(Data["SleepState"]["Time"])
     Data["SleepState"]["Data"] = np.array(Data["SleepState"]["Data"])
     return Data
