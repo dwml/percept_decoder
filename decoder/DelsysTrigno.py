@@ -144,9 +144,12 @@ def decodeHPFCSV(filename, skiprows=0):
     return Delsys
 
 def decodeBMLDelsysFormat(filename):
-    with open(filename, "rb") as file:
-        rawData = file.read()
-    
+    if type(filename) == "str":
+        with open(filename, "rb") as file:
+            rawData = file.read()
+    else:
+        rawData = filename
+
     PackageOnset = np.where([rawData[i:i+3] == b"BML" for i in range(len(rawData)-2)])[0]
     PackageType = [[rawData[i+4:i+8]][0] for i in PackageOnset]
     
