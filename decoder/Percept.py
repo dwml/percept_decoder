@@ -1294,6 +1294,12 @@ def extractTherapySettings(JSON, sourceData=dict()):
         sourceData[key] = Data[key]
     return Data
 
+def arangeArray(array, index1, index2):
+    tmp = copy.deepcopy(array[index1])
+    array[index1] = copy.deepcopy(array[index2])
+    array[index2] = copy.deepcopy(tmp)
+    return array
+
 def extractTimeDomainStreamingData(JSON, sourceData=dict()):
     """ Extract BrainSense Streaming Time-Domain Data
 
@@ -1344,8 +1350,27 @@ def extractTimeDomainStreamingData(JSON, sourceData=dict()):
             ChangesInMs = np.diff(Data["StreamingTD"][nStream]["Ticks"])
             TimePerPacket = np.median(ChangesInMs)
             if len(np.where(ChangesInMs < 0)[0]) > 0:
-                print("TicksInMs Revamped")
-                raise Exception("Bad Format in TicksInMs")
+                reversedIndex = np.where(ChangesInMs < 0)[0]
+                
+                Counter = 0
+                while len(reversedIndex) > 0:
+                    i = reversedIndex[0]
+                    Data["StreamingTD"][nStream]["Data"] = arangeArray(Data["StreamingTD"][nStream]["Data"],
+                                slice(int(np.sum(Data["StreamingTD"][nStream]["PacketSizes"][:i])),int(np.sum(Data["StreamingTD"][nStream]["PacketSizes"][:i])+Data["StreamingTD"][nStream]["PacketSizes"][i])),
+                                slice(int(np.sum(Data["StreamingTD"][nStream]["PacketSizes"][:i+1])),int(np.sum(Data["StreamingTD"][nStream]["PacketSizes"][:i+1])+Data["StreamingTD"][nStream]["PacketSizes"][i+1])))
+                    Data["StreamingTD"][nStream]["PacketSizes"] = arangeArray(Data["StreamingTD"][nStream]["PacketSizes"], i, i+1)
+                    Data["StreamingTD"][nStream]["Sequences"] = arangeArray(Data["StreamingTD"][nStream]["Sequences"], i, i+1)
+                    Data["StreamingTD"][nStream]["Ticks"] = arangeArray(Data["StreamingTD"][nStream]["Ticks"], i, i+1)
+                    
+                    ChangesInMs = np.diff(Data["StreamingTD"][nStream]["Ticks"])
+                    reversedIndex = np.where(ChangesInMs < 0)[0]
+                    
+                    Counter += 1
+                    if Counter > 10000:
+                        # If repeat for more than 10000 times.... this is baddddd
+                        raise Exception("TicksInMs Revamped, Current Fix Failed. Please check the source JSON files for error")
+                
+                print("TicksInMs Revamped - Dirty Fixed")
             
             MissingPacket = np.where(ChangesInMs > TimePerPacket)[0] + 1
             TDSequences = np.arange(len(Data["StreamingTD"][nStream]["Ticks"]))
