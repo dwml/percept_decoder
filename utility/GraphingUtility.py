@@ -170,7 +170,6 @@ def colorTextFromCmap(color):
         colorInfo = np.array(color[:-1]) * 255
     colorText = f"#{hex(int(colorInfo[0])).replace('0x',''):0>2}{hex(int(colorInfo[1])).replace('0x',''):0>2}{hex(int(colorInfo[2])).replace('0x',''):0>2}"
     return colorText
-
 class PlotlyFigure:
     def __init__(self, resolution=(1600,900), subplots=[1,1], vertical_spacing=0.1, subplot_titles=None, shared_xaxes=True, shared_yaxes=True, dpi=100.0):
         self.resolution = resolution 
@@ -204,16 +203,25 @@ class PlotlyFigure:
             row=self.getRow(ax), col=self.getCol(ax)
         )
     
-    def box(self, x, y, name="", color="#3BDEFF", width=0.3, hovertemplate="<extra></extra>", legendgroup=None, ax=0):
+    def box(self, x, y, name="", color="#3BDEFF", width=0.3, points="outliers", hovertemplate="<extra></extra>", legendgroup=None, ax=0):
         RGB = [int(color[i:i+2], 16) for i in (1, 3, 5)]
         self.fig.add_trace(
-            go.Box(x=x, y=y, width=width, name=name, 
+            go.Box(x=x, y=y, width=width, name=name,
                    marker_color="rgba({0},{1},{2},1)".format(RGB[0], RGB[1], RGB[2]), 
                    line_color="rgba({0},{1},{2},1)".format(RGB[0], RGB[1], RGB[2]),
                    hovertemplate=hovertemplate, legendgroup=legendgroup, showlegend=True),
             row=self.getRow(ax), col=self.getCol(ax)
         )
 
+    def scatter(self, x, y, name="", color="#3BDEFF", size=2, hovertemplate="<extra></extra>", legendgroup=None, ax=0):
+        RGB = [int(color[i:i+2], 16) for i in (1, 3, 5)]
+        self.fig.add_trace(
+            go.Scatter(x=x, y=y, mode="markers", name=name, 
+                       marker=dict(color="rgba({0},{1},{2},1)".format(RGB[0], RGB[1], RGB[2]), size=size),
+                       hovertemplate=hovertemplate, legendgroup=legendgroup, showlegend=True),
+            row=self.getRow(ax), col=self.getCol(ax)
+        )
+    
     def getRow(self, ax):
         return int(ax / self.layout[1])+1
     
@@ -275,6 +283,9 @@ class PlotlyFigure:
     def set_ylayout(self, layoutprops, ax=0):
         self.fig.update_yaxes(layoutprops, row=self.getRow(ax), col=self.getCol(ax))
 
+    def set_title(self, title, font="Arial", color="#000000", fontsize=15):
+        self.fig.update_layout(title=title,  title_font_family=font, title_font_color=color, title_font_size=fontsize)
+    
     def show(self, filename=None):
         if filename:
             return po.plot(self.fig, filename=filename, auto_open=False) 
