@@ -203,6 +203,16 @@ class PlotlyFigure:
                        hovertemplate=hovertemplate, legendgroup=legendgroup, showlegend=True),
             row=self.getRow(ax), col=self.getCol(ax)
         )
+    
+    def box(self, x, y, name="", color="#3BDEFF", width=0.3, hovertemplate="<extra></extra>", legendgroup=None, ax=0):
+        RGB = [int(color[i:i+2], 16) for i in (1, 3, 5)]
+        self.fig.add_trace(
+            go.Box(x=x, y=y, width=width, name=name, 
+                   marker_color="rgba({0},{1},{2},1)".format(RGB[0], RGB[1], RGB[2]), 
+                   line_color="rgba({0},{1},{2},1)".format(RGB[0], RGB[1], RGB[2]),
+                   hovertemplate=hovertemplate, legendgroup=legendgroup, showlegend=True),
+            row=self.getRow(ax), col=self.getCol(ax)
+        )
 
     def getRow(self, ax):
         return int(ax / self.layout[1])+1
