@@ -11,8 +11,7 @@ import scipy.signal as signal
 import scipy.stats as stats
 import copy
 
-from utility.PythonUtility import *
-#from entropy import sample_entropy
+from percept_decoder.utility.PythonUtility import rangeSelection
 
 def valueMapping(data, vmin=0, vmax=1, method="linear"):
     if method == "power":

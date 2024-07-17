@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "percept-decoder"
+version = "0.1.0"
+description = "Package to decode medtronic percept files. Originally written by Jackson Cagle."
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+scipy = "^1.14.0"
+python-dateutil = "^2.9.0.post0"
+numpy = "^2.0.0"
+cryptography = "^42.0.8"
+matplotlib = "^3.9.1"
+plotly = "^5.22.0"
+spectrum = "^0.8.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
