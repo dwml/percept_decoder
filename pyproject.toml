@@ -7,7 +7,7 @@ readme = "README.md"
 license = "MIT"
 
 [tool.poetry.scripts]
-get_lfps = "percept_decoder.scripts:main"
+get_time_domain_data = "percept_decoder.scripts:main"
 
 [tool.poetry.dependencies]
 python = "^3.10"
