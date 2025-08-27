@@ -14,10 +14,12 @@ a file with an encoded name. The script will also output a csv file that links t
 original data to the encoded name.
 """
 
+
 def _datetime_attribute(readout: PerceptReadOut) -> datetime:
     return datetime.strptime(
         readout.first_packet_date_time, "%Y-%m-%dT%H:%M:%S.%fZ"
     )
+
 
 def main():
     parser = argparse.ArgumentParser(description=script_description)
@@ -26,7 +28,7 @@ def main():
         metavar="F",
         type=Path,
         help="A csv file containing the following headers: file, patient, condition "
-        "and condition_id",
+             "and condition_id",
     )
     args = parser.parse_args()
 
@@ -66,12 +68,12 @@ def main():
         all_left = [
             time_domain for time_domain in readout.brain_sense_time_domain
             if "LEFT" in time_domain.channel
-            and len(time_domain.time_domain_data) > 10_000
+               and len(time_domain.time_domain_data) > 10_000
         ]
         all_right = [
             time_domain for time_domain in readout.brain_sense_time_domain
             if "RIGHT" in time_domain.channel
-            and len(time_domain.time_domain_data) > 10_000
+               and len(time_domain.time_domain_data) > 10_000
         ]
 
         # From both left and right sort the list based on datetime and take the newest

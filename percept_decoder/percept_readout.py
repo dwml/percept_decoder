@@ -6,7 +6,7 @@ from pydantic import Field
 
 
 class PerceptReadOut(BaseSchema):
-    """The BaseSchema provides pascal case aliasses, but for the optional fields,
+    """The BaseSchema provides pascal case aliases, but for the optional fields,
     we need to provide a Field class give the alias explicitly, and provide a default
     value.
     """
